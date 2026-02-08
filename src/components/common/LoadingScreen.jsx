@@ -4,7 +4,6 @@
  */
 
 import React from 'react';
-import { Shield } from 'lucide-react';
 
 function LoadingScreen() {
   return (
@@ -13,11 +12,15 @@ function LoadingScreen() {
         {/* Logo */}
         <div className="flex items-center justify-center mb-6">
           <div className="relative">
-            <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <Shield className="w-10 h-10 text-white" />
-            </div>
+            <img 
+              src="/logo-brand.png" 
+              alt="Guardian ERP" 
+              className="h-20"
+            />
             {/* Pulse animation */}
-            <div className="absolute inset-0 w-20 h-20 bg-blue-600 rounded-2xl animate-ping opacity-20" />
+            <div className="absolute inset-0 animate-ping opacity-10">
+              <img src="/logo-brand.png" alt="" className="h-20" />
+            </div>
           </div>
         </div>
         

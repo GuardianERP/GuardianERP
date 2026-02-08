@@ -90,9 +90,11 @@ function AuthPage() {
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl shadow-lg shadow-blue-500/30 mb-4">
-            <Shield className="w-8 h-8 text-white" />
-          </div>
+          <img 
+            src="/logo-brand.png" 
+            alt="Guardian ERP" 
+            className="h-20 mx-auto mb-4"
+          />
           <h1 className="text-3xl font-bold text-white">Guardian ERP</h1>
           <p className="text-blue-200 mt-2">Employee Management System</p>
         </div>
