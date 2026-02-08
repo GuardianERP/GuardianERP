@@ -28,8 +28,8 @@ jobs:
       - name: Build Vite
         run: npm run build
       
-      - name: Build Windows Portable
-        run: npx electron-builder --win portable --config electron-builder.config.js
+      - name: Build Windows
+        run: npx electron-builder --win --config electron-builder.config.js
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       

@@ -191,7 +191,10 @@ function createWindow() {
   if (isDev) {
     mainWindow.loadURL('http://localhost:8888');
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+    // In production, load from the app's root dist folder
+    const indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
+    console.log('Loading from:', indexPath);
+    mainWindow.loadFile(indexPath);
   }
 
   // Handle window close
