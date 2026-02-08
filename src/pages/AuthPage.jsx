@@ -91,7 +91,7 @@ function AuthPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <img 
-            src="/logo-brand.png" 
+            src="./logo-brand.png" 
             alt="Guardian ERP" 
             className="h-20 mx-auto mb-4"
           />

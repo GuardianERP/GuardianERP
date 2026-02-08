@@ -13,13 +13,13 @@ function LoadingScreen() {
         <div className="flex items-center justify-center mb-6">
           <div className="relative">
             <img 
-              src="/logo-brand.png" 
+              src="./logo-brand.png" 
               alt="Guardian ERP" 
               className="h-20"
             />
             {/* Pulse animation */}
             <div className="absolute inset-0 animate-ping opacity-10">
-              <img src="/logo-brand.png" alt="" className="h-20" />
+              <img src="./logo-brand.png" alt="" className="h-20" />
             </div>
           </div>
         </div>

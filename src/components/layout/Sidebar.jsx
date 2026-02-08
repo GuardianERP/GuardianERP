@@ -99,7 +99,7 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }) {
       <div className="h-16 flex items-center justify-between px-4 border-b border-gray-800">
         <div className="flex items-center gap-3">
           <img 
-            src="/logo-brand.png" 
+            src="./logo-brand.png" 
             alt="Guardian ERP" 
             className="h-10 flex-shrink-0"
           />
