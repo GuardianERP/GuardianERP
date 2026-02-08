@@ -6,6 +6,7 @@
 const { app, BrowserWindow, ipcMain, Notification, shell, dialog, session, desktopCapturer, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { initAutoUpdater } = require('./updater');
 
 // Database and Auth utilities
 let db = null;
@@ -184,6 +185,10 @@ function createWindow() {
     mainWindow.show();
     if (isDev) {
       mainWindow.webContents.openDevTools();
+    }
+    // Initialize auto-updater in production
+    if (!isDev) {
+      initAutoUpdater(mainWindow);
     }
   });
 
