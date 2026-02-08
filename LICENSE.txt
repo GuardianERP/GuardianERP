@@ -1,0 +1,48 @@
+Guardian Desktop ERP
+End-User License Agreement (EULA)
+
+IMPORTANT: READ CAREFULLY
+
+This End-User License Agreement ("Agreement") is a legal agreement between you ("User") and Guardian Systems ("Company") for the use of Guardian Desktop ERP software ("Software").
+
+By installing, copying, or using the Software, you agree to be bound by the terms of this Agreement. If you do not agree to these terms, do not install or use the Software.
+
+1. LICENSE GRANT
+   The Company grants you a limited, non-exclusive, non-transferable license to install and use the Software for your business operations, subject to the terms of this Agreement.
+
+2. RESTRICTIONS
+   You may not:
+   - Copy, modify, or distribute the Software
+   - Reverse engineer, decompile, or disassemble the Software
+   - Rent, lease, or lend the Software to third parties
+   - Use the Software for any unlawful purpose
+
+3. OWNERSHIP
+   The Software is protected by copyright laws and international treaties. The Company retains all intellectual property rights in the Software.
+
+4. DATA PRIVACY
+   - All data entered into the Software is stored locally on your device
+   - The Software does not transmit personal data to external servers without your consent
+   - You are responsible for backing up your data
+
+5. WARRANTY DISCLAIMER
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+6. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL THE COMPANY BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF THE USE OR INABILITY TO USE THE SOFTWARE.
+
+7. TERMINATION
+   This Agreement is effective until terminated. The Company may terminate this Agreement if you fail to comply with any term. Upon termination, you must destroy all copies of the Software.
+
+8. UPDATES
+   The Company may provide updates to the Software. By using the auto-update feature, you agree to receive and install updates automatically.
+
+9. GOVERNING LAW
+   This Agreement shall be governed by and construed in accordance with applicable laws.
+
+10. ENTIRE AGREEMENT
+    This Agreement constitutes the entire agreement between you and the Company regarding the Software and supersedes all prior agreements.
+
+By clicking "I Agree" or by installing the Software, you acknowledge that you have read this Agreement, understand it, and agree to be bound by its terms.
+
+Copyright © 2024 Guardian Systems. All rights reserved.
