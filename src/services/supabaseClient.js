@@ -6,8 +6,9 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Get environment variables (Vite exposes them via import.meta.env)
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Fallback to hardcoded values for production builds (these are public anon keys, safe for frontend)
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://apipxnfodaizycifyqkw.supabase.co';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFwaXB4bmZvZGFpenljaWZ5cWt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkzNzIyOTYsImV4cCI6MjA4NDk0ODI5Nn0.UutAI5py_rRrL97efSSou2btGsJeECeAYFOCGQFhctM';
 
 // Validate configuration
 if (!supabaseUrl || !supabaseKey) {

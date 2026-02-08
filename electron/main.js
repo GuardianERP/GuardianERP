@@ -194,8 +194,30 @@ function createWindow() {
     // In production, load from the app's root dist folder
     const indexPath = path.join(app.getAppPath(), 'dist', 'index.html');
     console.log('Loading from:', indexPath);
-    mainWindow.loadFile(indexPath);
+    console.log('App path:', app.getAppPath());
+    console.log('File exists:', fs.existsSync(indexPath));
+    
+    mainWindow.loadFile(indexPath).catch(err => {
+      console.error('Failed to load index.html:', err);
+      // Fallback: try alternative paths
+      const altPath = path.join(__dirname, '..', 'dist', 'index.html');
+      console.log('Trying fallback path:', altPath);
+      console.log('Fallback exists:', fs.existsSync(altPath));
+      mainWindow.loadFile(altPath).catch(err2 => {
+        console.error('Fallback also failed:', err2);
+        mainWindow.webContents.loadURL(`data:text/html,<h1>Error loading app</h1><p>Path: ${indexPath}</p><p>Alt: ${altPath}</p><p>${err.message}</p>`);
+      });
+    });
   }
+
+  // Log any page errors
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('Page failed to load:', errorCode, errorDescription);
+  });
+
+  mainWindow.webContents.on('console-message', (event, level, message) => {
+    console.log('Renderer:', message);
+  });
 
   // Handle window close
   mainWindow.on('closed', () => {
