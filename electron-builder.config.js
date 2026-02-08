@@ -8,6 +8,9 @@ const config = {
   productName: 'Guardian Desktop ERP',
   copyright: 'Copyright © 2026 Guardian Systems',
   
+  // Skip native module rebuild (canvas causes CI issues)
+  npmRebuild: false,
+  
   // Build directories
   directories: {
     output: 'release-new',
