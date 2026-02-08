@@ -60,13 +60,8 @@ const config = {
         target: 'nsis',
         arch: ['x64'],
       },
-      {
-        target: 'portable',
-        arch: ['x64'],
-      },
     ],
     icon: 'public/icon.ico',
-    artifactName: '${productName}-${version}-${arch}.${ext}',
     publisherName: 'Guardian Dental Billing LLC',
     legalTrademarks: 'Guardian Desktop ERP is a trademark of Guardian Dental Billing LLC',
     verifyUpdateCodeSignature: false,
@@ -76,9 +71,8 @@ const config = {
   
   // NSIS installer configuration
   nsis: {
-    oneClick: false,
+    oneClick: true,
     perMachine: true,
-    allowToChangeInstallationDirectory: true,
     allowElevation: true,
     installerIcon: 'public/icon.ico',
     uninstallerIcon: 'public/icon.ico',
@@ -86,13 +80,11 @@ const config = {
     createDesktopShortcut: true,
     createStartMenuShortcut: true,
     shortcutName: 'Guardian ERP',
-    license: 'LICENSE.txt',
     deleteAppDataOnUninstall: false,
     include: 'build-resources/installer.nsh',
     warningsAsErrors: false,
     menuCategory: 'Guardian Systems',
-    installerSidebar: null,
-    uninstallerSidebar: null,
+    artifactName: '${productName}-Setup-${version}.${ext}',
   },
   
   // macOS configuration
