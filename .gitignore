@@ -21,7 +21,7 @@ release-new/
 .env.*.local
 
 # Database files (local SQLite)
-data/
+/data/
 *.db
 *.sqlite
 *.sqlite3

@@ -1,6 +1,6 @@
 {
   "name": "guardian-desktop-erp",
-  "version": "2.2.5",
+  "version": "2.2.6",
   "description": "Guardian Desktop ERP - Employee Management Dashboard",
   "main": "electron/main.js",
   "repository": {
