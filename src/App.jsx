@@ -28,6 +28,7 @@ const RoleManagementPage = lazy(() => import('./pages/RoleManagementPage'));
 const UnauthorizedPage = lazy(() => import('./pages/UnauthorizedPage'));
 const AIAssistantPage = lazy(() => import('./pages/AIAssistantPage'));
 const IntakeFormPage = lazy(() => import('./pages/IntakeFormPage'));
+const IntakeNewPage = lazy(() => import('./pages/IntakeNewPage'));
 const ARFollowUpPage = lazy(() => import('./pages/ARFollowUpPage'));
 const VOBBOBPage = lazy(() => import('./pages/VOBBOBPage'));
 const VOBBOBAutoFillPage = lazy(() => import('./pages/VOBBOBAutoFillPage'));
@@ -166,6 +167,7 @@ function AppWithMonitoring() {
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="ai-assistant" element={<AIAssistantPage />} />
           <Route path="intake-form" element={<IntakeFormPage />} />
+          <Route path="intake-new" element={<IntakeNewPage />} />
           <Route path="ar-followup" element={<ARFollowUpPage />} />
           <Route path="vob-bob" element={<VOBBOBPage />} />
           <Route path="vob-bob-autofill" element={<VOBBOBAutoFillPage />} />

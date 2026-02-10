@@ -44,6 +44,7 @@ const employeeMenuItems = [
   { path: '/tasks', icon: CheckSquare, label: 'Tasks' },
   { path: '/leaves', icon: Calendar, label: 'Leaves' },
   { path: '/intake-form', icon: UserPlus, label: 'Intake Form' },
+  { path: '/intake-new', icon: UserPlus, label: 'Intake New' },
   { path: '/ar-followup', icon: FileText, label: 'AR Follow Up' },
   { path: '/vob-bob', icon: ClipboardList, label: 'VOB / BOB' },
   { path: '/vob-bob-autofill', icon: FileText, label: 'VOB Auto-Fill' },
