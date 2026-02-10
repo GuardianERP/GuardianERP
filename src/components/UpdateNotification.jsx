@@ -1,6 +1,7 @@
 /**
  * Guardian Desktop ERP - Update Notification Component
  * Shows update status and download progress
+ * Works for BOTH installed (NSIS) and portable users
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,8 +14,15 @@ import {
   Loader2,
   ArrowRight,
   Sparkles,
+  ExternalLink,
+  Megaphone,
 } from 'lucide-react';
 import { useAutoUpdate } from '../hooks/useAutoUpdate';
+
+// GitHub release info for manual checking (works for portable users too)
+const GITHUB_OWNER = 'GuardianERP';
+const GITHUB_REPO = 'GuardianERP';
+const CURRENT_VERSION = '2.3.5'; // Update this with each release
 
 function UpdateNotification() {
   const {
@@ -33,12 +41,65 @@ function UpdateNotification() {
   const [isDismissed, setIsDismissed] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   
+  // GitHub-based update check (works for portable users)
+  const [githubUpdate, setGithubUpdate] = useState(null);
+  const [githubChecking, setGithubChecking] = useState(false);
+  
+  // Check GitHub for updates on mount (fallback for portable users)
+  useEffect(() => {
+    const checkGitHubReleases = async () => {
+      try {
+        setGithubChecking(true);
+        const response = await fetch(
+          `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
+        );
+        if (response.ok) {
+          const release = await response.json();
+          const latestVersion = release.tag_name.replace('v', '');
+          const appVersion = currentVersion || CURRENT_VERSION;
+          
+          // Compare versions (simple string comparison works for semver)
+          if (latestVersion > appVersion) {
+            const exeAsset = release.assets.find(a => 
+              a.name.endsWith('.exe') && a.name.includes('Setup')
+            );
+            setGithubUpdate({
+              version: latestVersion,
+              releaseNotes: release.body,
+              downloadUrl: exeAsset?.browser_download_url || release.html_url,
+              htmlUrl: release.html_url,
+              publishedAt: release.published_at,
+            });
+          }
+        }
+      } catch (err) {
+        console.log('GitHub update check failed:', err.message);
+      } finally {
+        setGithubChecking(false);
+      }
+    };
+    
+    // Check after 3 seconds to not block app load
+    const timer = setTimeout(checkGitHubReleases, 3000);
+    return () => clearTimeout(timer);
+  }, [currentVersion]);
+  
   // Show notification when update is available
   useEffect(() => {
-    if (updateAvailable || updateDownloaded) {
+    if (updateAvailable || updateDownloaded || githubUpdate) {
       setIsDismissed(false);
     }
-  }, [updateAvailable, updateDownloaded]);
+  }, [updateAvailable, updateDownloaded, githubUpdate]);
+  
+  // Open download in browser (for portable users)
+  const openDownloadInBrowser = () => {
+    const url = githubUpdate?.downloadUrl || `https://github.com/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`;
+    if (window.electronAPI?.openExternal) {
+      window.electronAPI.openExternal(url);
+    } else {
+      window.open(url, '_blank');
+    }
+  };
   
   // Handle download
   const handleDownload = async () => {
@@ -53,11 +114,52 @@ function UpdateNotification() {
   }
   
   // Don't show if no update available and not checking
-  if (!updateAvailable && !updateDownloaded && !isChecking && !error) {
+  if (!updateAvailable && !updateDownloaded && !isChecking && !error && !githubUpdate) {
     return null;
   }
   
   return (
+    <>
+      {/* PROMINENT TOP BANNER for GitHub-detected updates (works for portable users) */}
+      {githubUpdate && !updateDownloaded && !updateAvailable && !isDismissed && (
+        <div className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-r from-orange-600 via-red-600 to-pink-600 text-white shadow-lg animate-slide-down">
+          <div className="max-w-7xl mx-auto px-4 py-3">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-full">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-lg">
+                    🎉 New Version Available: v{githubUpdate.version}
+                  </p>
+                  <p className="text-sm text-white/90">
+                    Click to download the latest version with new features and improvements
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={openDownloadInBrowser}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-red-600 font-bold rounded-lg hover:bg-gray-100 transition-colors shadow-lg"
+                >
+                  <Download className="w-5 h-5" />
+                  Download Now
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setIsDismissed(true)}
+                  className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                  title="Dismiss"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
     <div className="fixed bottom-4 right-4 z-50 max-w-sm">
       {/* Error State */}
       {error && !updateAvailable && (
@@ -211,8 +313,22 @@ function UpdateNotification() {
         .animate-slide-in {
           animation: slide-in 0.3s ease-out;
         }
+        @keyframes slide-down {
+          from {
+            opacity: 0;
+            transform: translateY(-100%);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-down {
+          animation: slide-down 0.4s ease-out;
+        }
       `}</style>
     </div>
+    </>
   );
 }
 
