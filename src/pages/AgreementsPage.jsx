@@ -508,44 +508,62 @@ function AgreementsPage() {
   const generatePDF = async (type) => {
     setGenerating(true);
     try {
-      const html2pdf = await loadHtml2Pdf();
       const htmlContent = type === 'employee'
         ? generateEmployeeAgreementHTML(formData)
         : generateGuarantorAgreementHTML(formData);
 
-      const fileName = type === 'employee'
-        ? `Employment_Agreement_${(formData.employee_name || 'Draft').replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
-        : `Guarantor_Agreement_${(formData.employee_name || 'Draft').replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
+      const title = type === 'employee'
+        ? `Employment Agreement - ${formData.employee_name || 'Draft'}`
+        : `Guarantor Agreement - ${formData.employee_name || 'Draft'}`;
 
-      // Create wrapper with explicit dimensions
-      const wrapper = document.createElement('div');
-      wrapper.id = 'pdf-temp-container';
-      wrapper.style.cssText = 'width:210mm;min-height:297mm;padding:0;margin:0;background:#fff;';
-      wrapper.innerHTML = htmlContent;
-      document.body.appendChild(wrapper);
+      // Open a new window with the full agreement HTML and trigger print
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
+      if (!printWindow) {
+        toast.error('Please allow pop-ups to print the agreement.');
+        setGenerating(false);
+        return;
+      }
 
-      // Small delay for rendering
-      await new Promise(r => setTimeout(r, 100));
+      printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>${title}</title>
+  <style>
+    @page { size: A4; margin: 10mm 12mm 10mm 12mm; }
+    @media print {
+      body { margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+    body { margin: 0; padding: 0; background: #fff; }
+  </style>
+</head>
+<body>${htmlContent}</body>
+</html>`);
+      printWindow.document.close();
 
-      const opt = {
-        margin: 0,
-        filename: fileName,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      // Wait for content to fully load then trigger print
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.focus();
+          printWindow.print();
+          setGenerating(false);
+        }, 300);
       };
 
-      await html2pdf().set(opt).from(wrapper).save();
-      document.body.removeChild(wrapper);
-      toast.success(`${type === 'employee' ? 'Employment' : 'Guarantor'} Agreement PDF downloaded!`);
+      // Fallback if onload doesn't fire
+      setTimeout(() => {
+        try {
+          printWindow.focus();
+          printWindow.print();
+        } catch (e) { /* already handled */ }
+        setGenerating(false);
+      }, 1500);
+
+      toast.success('Print dialog opened! Choose "Save as PDF" or print directly.');
     } catch (err) {
       console.error('PDF generation error:', err);
       toast.error('Failed to generate PDF: ' + err.message);
-      // Cleanup if error
-      const temp = document.getElementById('pdf-temp-container');
-      if (temp) temp.remove();
+      setGenerating(false);
     }
-    setGenerating(false);
   };
 
   const saveAgreement = async (type) => {
@@ -560,25 +578,27 @@ function AgreementsPage() {
         ? generateEmployeeAgreementHTML(formData)
         : generateGuarantorAgreementHTML(formData);
 
-      // Create wrapper with explicit dimensions
-      const wrapper = document.createElement('div');
-      wrapper.id = 'pdf-temp-container-save';
-      wrapper.style.cssText = 'width:210mm;min-height:297mm;padding:0;margin:0;background:#fff;';
-      wrapper.innerHTML = htmlContent;
-      document.body.appendChild(wrapper);
+      // Use an iframe for reliable rendering
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;height:1123px;border:none;';
+      document.body.appendChild(iframe);
 
-      // Small delay for rendering
-      await new Promise(r => setTimeout(r, 100));
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      iframeDoc.open();
+      iframeDoc.write(`<!DOCTYPE html><html><head><style>body{margin:0;padding:0;background:#fff;}</style></head><body>${htmlContent}</body></html>`);
+      iframeDoc.close();
 
-      const opt = {
-        margin: 0,
+      // Wait for iframe to render
+      await new Promise(r => setTimeout(r, 500));
+
+      const pdfBlob = await html2pdf().from(iframeDoc.body).set({
+        margin: [5, 5, 5, 5],
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        html2canvas: { scale: 2, useCORS: true, width: 794, windowWidth: 794, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+      }).outputPdf('blob');
 
-      const pdfBlob = await html2pdf().set(opt).from(wrapper).outputPdf('blob');
-      document.body.removeChild(wrapper);
+      document.body.removeChild(iframe);
 
       const fileName = `agreements/${selectedEmployee.id}/${type}-agreement-${Date.now()}.pdf`;
       const { error: uploadError } = await supabase.storage
