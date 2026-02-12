@@ -168,28 +168,231 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
   const [screenSharing, setScreenSharing] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [callStatus, setCallStatus] = useState('connecting');
+  const [connectedPeers, setConnectedPeers] = useState({});
   
   const localVideoRef = useRef(null);
+  const remoteVideoRefs = useRef({});
   const peerConnections = useRef({});
+  const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
   const callChannelRef = useRef(null);
   const { user } = useAuth();
 
-  // Initialize local media
+  // ICE servers for NAT traversal
+  const ICE_SERVERS = {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun1.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun3.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+    ]
+  };
+
+  // Create a peer connection for a remote user
+  const createPeerConnection = useCallback((remoteUserId, remoteName) => {
+    if (peerConnections.current[remoteUserId]) {
+      console.log('[WebRTC] Peer connection already exists for', remoteUserId);
+      return peerConnections.current[remoteUserId];
+    }
+
+    console.log('[WebRTC] Creating peer connection for', remoteUserId, remoteName);
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+
+    // Add local tracks to the connection
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => {
+        pc.addTrack(track, localStreamRef.current);
+      });
+    }
+
+    // Handle incoming remote tracks
+    pc.ontrack = (event) => {
+      console.log('[WebRTC] Received remote track from', remoteUserId, event.track.kind);
+      const [stream] = event.streams;
+      if (stream) {
+        setRemoteStreams(prev => ({ ...prev, [remoteUserId]: stream }));
+        setConnectedPeers(prev => ({ ...prev, [remoteUserId]: remoteName || 'Participant' }));
+      }
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = (event) => {
+      if (event.candidate && callChannelRef.current) {
+        callChannelRef.current.send({
+          type: 'broadcast',
+          event: 'signal',
+          payload: {
+            type: 'ice-candidate',
+            candidate: event.candidate.toJSON(),
+            from: user.id,
+            to: remoteUserId,
+          }
+        });
+      }
+    };
+
+    // Connection state monitoring
+    pc.onconnectionstatechange = () => {
+      console.log('[WebRTC] Connection state with', remoteUserId, ':', pc.connectionState);
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        setRemoteStreams(prev => {
+          const updated = { ...prev };
+          delete updated[remoteUserId];
+          return updated;
+        });
+        setConnectedPeers(prev => {
+          const updated = { ...prev };
+          delete updated[remoteUserId];
+          return updated;
+        });
+        if (peerConnections.current[remoteUserId]) {
+          peerConnections.current[remoteUserId].close();
+          delete peerConnections.current[remoteUserId];
+        }
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log('[WebRTC] ICE state with', remoteUserId, ':', pc.iceConnectionState);
+    };
+
+    peerConnections.current[remoteUserId] = pc;
+    return pc;
+  }, [user?.id]);
+
+  // Handle signaling messages
+  const handleSignal = useCallback(async (payload) => {
+    const { type, from, to, userName } = payload;
+    
+    // Ignore messages from ourselves
+    if (from === user?.id) return;
+    // Ignore messages targeted at other users
+    if (to && to !== user?.id) return;
+
+    console.log('[WebRTC] Received signal:', type, 'from', from);
+
+    switch (type) {
+      case 'join': {
+        // A new user joined - create offer for them
+        const pc = createPeerConnection(from, userName);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          callChannelRef.current?.send({
+            type: 'broadcast',
+            event: 'signal',
+            payload: {
+              type: 'offer',
+              sdp: pc.localDescription.toJSON(),
+              from: user.id,
+              to: from,
+              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+            }
+          });
+        } catch (err) {
+          console.error('[WebRTC] Error creating offer:', err);
+        }
+        break;
+      }
+
+      case 'offer': {
+        // Received an offer - create answer
+        const pc = createPeerConnection(from, userName);
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          callChannelRef.current?.send({
+            type: 'broadcast',
+            event: 'signal',
+            payload: {
+              type: 'answer',
+              sdp: pc.localDescription.toJSON(),
+              from: user.id,
+              to: from,
+              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+            }
+          });
+        } catch (err) {
+          console.error('[WebRTC] Error creating answer:', err);
+        }
+        break;
+      }
+
+      case 'answer': {
+        // Received an answer to our offer
+        const pc = peerConnections.current[from];
+        if (pc && pc.signalingState !== 'stable') {
+          try {
+            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+          } catch (err) {
+            console.error('[WebRTC] Error setting remote description:', err);
+          }
+        }
+        break;
+      }
+
+      case 'ice-candidate': {
+        // Received ICE candidate
+        const pc = peerConnections.current[from];
+        if (pc) {
+          try {
+            await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+          } catch (err) {
+            console.error('[WebRTC] Error adding ICE candidate:', err);
+          }
+        }
+        break;
+      }
+
+      case 'leave': {
+        // User left - clean up their connection
+        if (peerConnections.current[from]) {
+          peerConnections.current[from].close();
+          delete peerConnections.current[from];
+        }
+        setRemoteStreams(prev => {
+          const updated = { ...prev };
+          delete updated[from];
+          return updated;
+        });
+        setConnectedPeers(prev => {
+          const updated = { ...prev };
+          delete updated[from];
+          return updated;
+        });
+        break;
+      }
+
+      default:
+        console.log('[WebRTC] Unknown signal type:', type);
+    }
+  }, [user?.id, user?.firstName, user?.lastName, createPeerConnection]);
+
+  // Initialize local media and signaling
   useEffect(() => {
+    let mounted = true;
+
     const initMedia = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: meeting.meeting_type === 'video',
           audio: true
         });
+        if (!mounted) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
+        
+        localStreamRef.current = stream;
         setLocalStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
         setCallStatus('connected');
         
-        // Initialize signaling channel
+        // Initialize signaling channel via Supabase Broadcast
         const channelName = `meeting:${meeting.id}`;
         const channel = supabase.channel(channelName, {
           config: { broadcast: { self: false } }
@@ -199,50 +402,69 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
           handleSignal(payload);
         });
         
-        channel.subscribe();
+        await channel.subscribe();
         callChannelRef.current = channel;
         
-        // Announce joining
-        channel.send({
-          type: 'broadcast',
-          event: 'signal',
-          payload: { type: 'join', userId: user.id, userName: `${user.firstName} ${user.lastName}` }
-        });
+        // Announce joining to trigger offers from existing participants
+        // Small delay to ensure channel is fully ready
+        setTimeout(() => {
+          if (mounted && callChannelRef.current) {
+            callChannelRef.current.send({
+              type: 'broadcast',
+              event: 'signal',
+              payload: {
+                type: 'join',
+                from: user.id,
+                userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+              }
+            });
+          }
+        }, 500);
         
       } catch (error) {
         console.error('Failed to access media devices:', error);
-        toast.error('Could not access camera/microphone');
-        setCallStatus('error');
+        if (mounted) {
+          toast.error('Could not access camera/microphone');
+          setCallStatus('error');
+        }
       }
     };
     
     initMedia();
     
     return () => {
+      mounted = false;
       // Cleanup
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach(track => track.stop());
       }
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach(track => track.stop());
       }
       Object.values(peerConnections.current).forEach(pc => pc.close());
+      peerConnections.current = {};
       if (callChannelRef.current) {
         callChannelRef.current.send({
           type: 'broadcast',
           event: 'signal',
-          payload: { type: 'leave', userId: user.id }
+          payload: { type: 'leave', from: user.id }
         });
-        callChannelRef.current.unsubscribe();
+        setTimeout(() => {
+          callChannelRef.current?.unsubscribe();
+        }, 300);
       }
     };
-  }, [meeting.id]);
+  }, [meeting.id, meeting.meeting_type, user?.id, handleSignal]);
 
-  const handleSignal = async (payload) => {
-    // Handle WebRTC signaling (offer, answer, ice candidates)
-    // Simplified for demo - full implementation would handle all signal types
-    console.log('Received signal:', payload.type);
-  };
+  // Attach remote streams to video elements
+  useEffect(() => {
+    Object.entries(remoteStreams).forEach(([peerId, stream]) => {
+      const el = remoteVideoRefs.current[peerId];
+      if (el && el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+    });
+  }, [remoteStreams]);
 
   const toggleMic = () => {
     if (localStream) {
@@ -273,16 +495,21 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
         });
         screenStreamRef.current = screenStream;
         
-        // Replace video track with screen track
+        // Replace video track with screen track on all peer connections
         const screenTrack = screenStream.getVideoTracks()[0];
+        Object.values(peerConnections.current).forEach(pc => {
+          const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) sender.replaceTrack(screenTrack);
+        });
+        
         screenTrack.onended = () => {
           setScreenSharing(false);
-          // Restore camera
-          if (localStream) {
-            const videoTrack = localStream.getVideoTracks()[0];
+          // Restore camera track on all peers
+          if (localStreamRef.current) {
+            const videoTrack = localStreamRef.current.getVideoTracks()[0];
             Object.values(peerConnections.current).forEach(pc => {
               const sender = pc.getSenders().find(s => s.track?.kind === 'video');
-              if (sender) sender.replaceTrack(videoTrack);
+              if (sender && videoTrack) sender.replaceTrack(videoTrack);
             });
           }
         };
@@ -294,6 +521,14 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
           screenStreamRef.current.getTracks().forEach(track => track.stop());
           screenStreamRef.current = null;
         }
+        // Restore camera track on all peers
+        if (localStreamRef.current) {
+          const videoTrack = localStreamRef.current.getVideoTracks()[0];
+          Object.values(peerConnections.current).forEach(pc => {
+            const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+            if (sender && videoTrack) sender.replaceTrack(videoTrack);
+          });
+        }
         setScreenSharing(false);
         toast.success('Screen sharing stopped');
       }
@@ -304,8 +539,8 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
   };
 
   const handleEndCall = () => {
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach(track => track.stop());
     }
     if (screenStreamRef.current) {
       screenStreamRef.current.getTracks().forEach(track => track.stop());
@@ -398,15 +633,45 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
           )}
         </div>
 
-        {/* Remote participants would be rendered here */}
-        {participants.filter(p => p.user_id !== user?.id).map((participant) => {
+        {/* Remote participants with live video/audio */}
+        {Object.entries(remoteStreams).map(([peerId, stream]) => {
+          const emp = allEmployees.find(e => e.user_id === peerId);
+          const name = emp ? `${emp.first_name} ${emp.last_name}` : (connectedPeers[peerId] || 'Participant');
+          const hasVideo = stream.getVideoTracks().some(t => t.enabled && !t.muted);
+          return (
+            <div key={peerId} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video">
+              <video
+                ref={el => { remoteVideoRefs.current[peerId] = el; }}
+                autoPlay
+                playsInline
+                className={`w-full h-full object-cover ${!hasVideo ? 'hidden' : ''}`}
+              />
+              {!hasVideo && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-3xl font-bold text-white">
+                    {name[0]}
+                  </div>
+                </div>
+              )}
+              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm">
+                {name}
+              </div>
+            </div>
+          );
+        })}
+
+        {/* Participants not yet connected (from meeting roster) */}
+        {participants.filter(p => p.user_id !== user?.id && !remoteStreams[p.user_id]).map((participant) => {
           const emp = allEmployees.find(e => e.user_id === participant.user_id);
           const name = emp ? `${emp.first_name} ${emp.last_name}` : 'Participant';
           return (
             <div key={participant.user_id} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video">
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-3xl font-bold text-white">
-                  {name[0]}
+                <div className="text-center">
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-3xl font-bold text-white mx-auto mb-2">
+                    {name[0]}
+                  </div>
+                  <p className="text-gray-400 text-xs">Not connected</p>
                 </div>
               </div>
               <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm">
