@@ -511,10 +511,14 @@ function AgreementsPage() {
         ? generateEmployeeAgreementHTML(formData)
         : generateGuarantorAgreementHTML(formData);
 
+      // Create container - must be visible for html2canvas
       const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;left:0;top:0;width:794px;background:#fff;z-index:-1;opacity:0.01;';
+      container.style.cssText = 'position:absolute;left:0;top:0;width:794px;background:#fff;';
       container.innerHTML = htmlContent;
       document.body.appendChild(container);
+
+      // Wait for DOM to render
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
       const fileName = type === 'employee'
         ? `Employment_Agreement_${(formData.employee_name || 'Draft').replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
@@ -524,7 +528,7 @@ function AgreementsPage() {
         margin: [2, 0, 2, 0],
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, width: 794, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       }).save();
@@ -550,15 +554,19 @@ function AgreementsPage() {
         ? generateEmployeeAgreementHTML(formData)
         : generateGuarantorAgreementHTML(formData);
 
+      // Create container - must be visible for html2canvas
       const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;left:0;top:0;width:794px;background:#fff;z-index:-1;opacity:0.01;';
+      container.style.cssText = 'position:absolute;left:0;top:0;width:794px;background:#fff;';
       container.innerHTML = htmlContent;
       document.body.appendChild(container);
+
+      // Wait for DOM to render
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
       const pdfBlob = await html2pdf().from(container).set({
         margin: [2, 0, 2, 0],
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, width: 794, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+        html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       }).outputPdf('blob');
