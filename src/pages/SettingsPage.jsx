@@ -7,12 +7,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   User, Mail, Phone, Lock, Camera, Bell, Moon, Globe, 
   Shield, Database, Download, Trash2, Save, Eye, EyeOff, Check,
-  Key, Cpu, TestTube, RefreshCw
+  Key, Cpu, TestTube, RefreshCw, Send, Megaphone
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
 import { useTheme } from '../store/ThemeContext';
 import { settingsAPI, filesAPI, employeesAPI } from '../services/api';
 import { appSettingsService, testGeminiConnection } from '../services/geminiService';
+import notificationService from '../services/notificationService';
 import toast from 'react-hot-toast';
 
 function SettingsPage() {
@@ -27,6 +28,14 @@ function SettingsPage() {
 
   // Check if user is admin
   const isAdmin = ['admin', 'super_admin', 'Admin', 'Super_Admin'].includes(user?.role);
+  const isSuperAdmin = ['super_admin', 'Super_Admin'].includes(user?.role);
+
+  // System notification state
+  const [releaseNotification, setReleaseNotification] = useState({
+    version: '2.4.0',
+    message: 'New features include: Complete Employee Profile Form, C-Class Executive Department, and Profile Picture Upload!'
+  });
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   const [profile, setProfile] = useState({
     name: user?.name || '',
@@ -262,10 +271,35 @@ function SettingsPage() {
     { id: 'data', label: 'Data & Privacy', icon: Shield }
   ];
 
-  // Add API Settings tab for admin users
-  const tabs = isAdmin 
-    ? [...baseTabs, { id: 'api', label: 'API Settings', icon: Key }]
-    : baseTabs;
+  // Add API Settings tab for admin users, and System tab for super admin
+  let tabs = [...baseTabs];
+  if (isAdmin) {
+    tabs.push({ id: 'api', label: 'API Settings', icon: Key });
+  }
+  if (isSuperAdmin) {
+    tabs.push({ id: 'system', label: 'System Admin', icon: Megaphone });
+  }
+
+  // Send app update notification to all employees
+  const handleSendReleaseNotification = async () => {
+    if (!releaseNotification.version.trim()) {
+      toast.error('Please enter a version number');
+      return;
+    }
+    
+    setSendingNotification(true);
+    try {
+      const result = await notificationService.sendAppUpdateNotification(
+        releaseNotification.version,
+        releaseNotification.message
+      );
+      toast.success(`Notification sent to ${result.count} employees!`);
+    } catch (error) {
+      toast.error(error.message || 'Failed to send notification');
+    } finally {
+      setSendingNotification(false);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -738,6 +772,92 @@ function SettingsPage() {
                   <Save className="w-4 h-4 mr-2" />
                   Save API Settings
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* System Admin Tab (Super Admin Only) */}
+          {activeTab === 'system' && isSuperAdmin && (
+            <div className="card p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <Megaphone className="w-6 h-6 text-blue-600" />
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">System Administration</h2>
+                  <p className="text-sm text-gray-500">Send announcements and manage system-wide settings</p>
+                </div>
+              </div>
+              
+              {/* Send Release Notification */}
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-green-50 dark:from-blue-900/20 dark:to-green-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-green-500 rounded-lg flex items-center justify-center">
+                    <Send className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">Send App Update Notification</p>
+                    <p className="text-xs text-gray-500">Notify all employees about a new version release</p>
+                  </div>
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Version Number
+                    </label>
+                    <input
+                      type="text"
+                      value={releaseNotification.version}
+                      onChange={(e) => setReleaseNotification({ ...releaseNotification, version: e.target.value })}
+                      placeholder="e.g., 2.4.0"
+                      className="input w-full"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Release Notes (Optional)
+                    </label>
+                    <textarea
+                      value={releaseNotification.message}
+                      onChange={(e) => setReleaseNotification({ ...releaseNotification, message: e.target.value })}
+                      placeholder="Describe what's new in this version..."
+                      rows={3}
+                      className="input w-full"
+                    />
+                  </div>
+                  
+                  <button 
+                    onClick={handleSendReleaseNotification}
+                    disabled={sendingNotification}
+                    className="btn btn-primary w-full"
+                  >
+                    {sendingNotification ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Send Notification to All Employees
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Info Box */}
+              <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700">
+                <div className="flex items-start gap-3">
+                  <Bell className="w-5 h-5 text-yellow-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-yellow-800 dark:text-yellow-200">Notification Info</p>
+                    <p className="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                      This will send a pop-up notification to all employees who have login accounts. 
+                      The notification will appear in their notification inbox and as a real-time alert.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           )}

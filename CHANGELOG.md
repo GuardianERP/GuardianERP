@@ -5,6 +5,48 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-02-12
+
+### Added
+- **Complete Employee Profile Form**
+  - Multi-tab profile form with Basic Info, Contact, Employment, and Personal tabs
+  - Profile picture upload with camera icon and preview
+  - Company email and personal email fields
+  - Date of birth, gender, and marital status
+  - Complete address with city, country, and nationality
+  - Emergency contact with name and phone number
+  - Blood group selection
+
+- **C-Class Executive Department**
+  - New department for executive leadership
+  - Positions include: CEO, COO, CFO, CTO, CMO, CHRO, MD, GM, AVP, VP, SVP, Director
+  - Gold color badge for executive identification
+
+- **App Update Notifications**
+  - System-wide notification when new version is released
+  - Automatic notification to all employees with accounts
+
+### Fixed
+- **system_role Column Error**
+  - Fixed "Could not find the 'system_role' column" error when adding employees
+  - Properly separated system access role from job designation
+  - System role now correctly saved to 'role' column
+  - Job position now saved to 'designation' column
+
+### Improved
+- **Employee Self-Service**
+  - Employees can now update their own profile pictures
+  - Extended self-update fields: personal email, nationality, emergency contact name, blood group, marital status, gender
+
+### Database
+- New migration: `migration-employee-profile-update.sql`
+  - Added `personal_email` column
+  - Added `emergency_contact_name` column
+  - Added `nationality` column
+  - Added `gender` column
+  - Added `marital_status` column
+  - Added indexes for faster queries
+
 ## [1.0.0] - 2024-01-15
 
 ### Added
@@ -88,7 +130,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 | Version | Release Date | Status |
 |---------|--------------|--------|
-| 1.0.0   | 2024-01-15   | Current |
+| 2.4.0   | 2026-02-12   | Current |
+| 2.3.6   | 2026-02-10   | Previous |
+| 1.0.0   | 2024-01-15   | Legacy |
 
 ## Upgrading
 

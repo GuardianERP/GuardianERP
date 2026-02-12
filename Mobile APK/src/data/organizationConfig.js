@@ -7,6 +7,12 @@
 // DEPARTMENTS
 // ========================================
 export const DEPARTMENTS = {
+  C_CLASS: {
+    id: 'c_class',
+    name: 'C-Class Executive',
+    description: 'Chief Executive Officers, Managing Directors, and General Managers',
+    color: 'gold',
+  },
   OPERATIONS: {
     id: 'operations',
     name: 'Operations',
@@ -47,6 +53,7 @@ export const DEPARTMENTS = {
 
 // Array format for dropdowns
 export const DEPARTMENT_LIST = [
+  { value: 'c_class', label: 'C-Class Executive', color: 'gold' },
   { value: 'operations', label: 'Operations', color: 'blue' },
   { value: 'marketing', label: 'Marketing & Lead Generation', color: 'purple' },
   { value: 'hr', label: 'HR & People Operations', color: 'green' },
@@ -59,6 +66,22 @@ export const DEPARTMENT_LIST = [
 // POSITIONS/ROLES BY DEPARTMENT
 // ========================================
 export const POSITIONS = {
+  // C-Class Executive Department
+  c_class: [
+    { value: 'ceo', label: 'Chief Executive Officer (CEO)', level: 'executive' },
+    { value: 'coo', label: 'Chief Operating Officer (COO)', level: 'executive' },
+    { value: 'cfo', label: 'Chief Financial Officer (CFO)', level: 'executive' },
+    { value: 'cto', label: 'Chief Technology Officer (CTO)', level: 'executive' },
+    { value: 'cmo', label: 'Chief Marketing Officer (CMO)', level: 'executive' },
+    { value: 'chro', label: 'Chief Human Resources Officer (CHRO)', level: 'executive' },
+    { value: 'md', label: 'Managing Director (MD)', level: 'executive' },
+    { value: 'gm', label: 'General Manager (GM)', level: 'executive' },
+    { value: 'avp', label: 'Associate Vice President (AVP)', level: 'executive' },
+    { value: 'vp', label: 'Vice President (VP)', level: 'executive' },
+    { value: 'svp', label: 'Senior Vice President (SVP)', level: 'executive' },
+    { value: 'director', label: 'Director', level: 'executive' },
+  ],
+
   // Operations Department
   operations: [
     // Leadership
@@ -161,6 +184,7 @@ export const getPositionsByDepartment = (departmentId) => {
  */
 export const getDepartmentColor = (departmentId) => {
   const colors = {
+    c_class: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
     operations: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
     marketing: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
     hr: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',

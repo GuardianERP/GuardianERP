@@ -7,6 +7,42 @@ import { supabase } from './supabaseClient';
 
 const notificationService = {
   /**
+   * Send app update notification to ALL employees
+   * Call this after a new release is pushed
+   */
+  sendAppUpdateNotification: async (version, releaseNotes = '') => {
+    try {
+      // Get all employees with user_id (who can receive notifications)
+      const { data: allEmployees } = await supabase
+        .from('employees')
+        .select('user_id')
+        .not('user_id', 'is', null);
+
+      if (!allEmployees || allEmployees.length === 0) return;
+
+      const notifications = allEmployees
+        .filter(e => e.user_id)
+        .map(e => ({
+          user_id: e.user_id,
+          title: `🚀 Guardian ERP v${version} Released!`,
+          message: releaseNotes || 'A new version is available. Please restart the app to update.',
+          type: 'system',
+          link: '/notifications',
+        }));
+
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications);
+      }
+
+      console.log(`App update notification v${version} sent to ${notifications.length} users`);
+      return { success: true, count: notifications.length };
+    } catch (error) {
+      console.error('Failed to send app update notification:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Send a welcome notification to ALL team members when a new employee is added
    */
   sendWelcomeNotification: async (newEmployee) => {

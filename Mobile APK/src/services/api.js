@@ -498,7 +498,7 @@ export const employeesAPI = {
       }
       
       // Limit what employees can update
-      const allowedFields = ['first_name', 'last_name', 'phone', 'address', 'city', 'emergency_contact', 'avatar_url'];
+      const allowedFields = ['first_name', 'last_name', 'phone', 'personal_email', 'address', 'city', 'country', 'nationality', 'emergency_contact', 'emergency_contact_name', 'blood_group', 'marital_status', 'gender', 'date_of_birth', 'avatar_url'];
       const filteredData = {};
       allowedFields.forEach(field => {
         if (data[field] !== undefined) {
@@ -655,6 +655,66 @@ export const employeesAPI = {
     if (error) handleError(error, 'reset password');
     
     return { success: true, email: employee.email };
+  },
+
+  // Upload employee profile photo
+  uploadPhoto: async (file, employeeId) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    
+    // RBAC: Check if user can upload photo
+    // Admins/managers can upload for anyone, employees can only upload their own
+    if (!isAdminOrManager()) {
+      const { data: empCheck } = await supabase
+        .from('employees')
+        .select('user_id')
+        .eq('id', employeeId)
+        .single();
+      
+      if (empCheck?.user_id !== user?.id) {
+        throw new Error('Access denied. You can only update your own photo.');
+      }
+    }
+    
+    // Generate unique filename
+    const fileExt = file.name.split('.').pop();
+    const fileName = `employee-photos/${employeeId || 'temp'}-${Date.now()}.${fileExt}`;
+    
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('files')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+    
+    if (uploadError) {
+      console.error('Upload error:', uploadError);
+      throw new Error('Failed to upload photo. Please try again.');
+    }
+    
+    // Get public URL
+    const { data: urlData } = supabase.storage
+      .from('files')
+      .getPublicUrl(fileName);
+    
+    const photoUrl = urlData?.publicUrl;
+    
+    // If employeeId provided, update the employee record
+    if (employeeId) {
+      const { error: updateError } = await supabase
+        .from('employees')
+        .update({ avatar_url: photoUrl, updated_at: new Date().toISOString() })
+        .eq('id', employeeId);
+      
+      if (updateError) {
+        console.error('Update error:', updateError);
+        // Don't throw, photo was uploaded successfully
+      }
+    }
+    
+    return photoUrl;
   },
 };
 

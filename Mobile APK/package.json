@@ -1,6 +1,6 @@
 {
   "name": "guardian-erp-mobile",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "Guardian ERP Mobile - Employee Management App",
   "main": "dist/index.html",
   "scripts": {
