@@ -35,6 +35,7 @@ import {
   X,
   UserPlus,
   Video,
+<<<<<<< HEAD
   Wallet,
   Briefcase,
   Calculator,
@@ -52,6 +53,30 @@ const mainMenuItems = [
   { path: '/documents', icon: FolderOpen, label: 'Documents', color: 'text-amber-400' },
   { path: '/notifications', icon: Bell, label: 'Notifications', color: 'text-red-400' },
   { path: '/settings', icon: Settings, label: 'Settings', color: 'text-gray-400' },
+=======
+} from 'lucide-react';
+
+// Menu items visible to all employees
+const employeeMenuItems = [
+  { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { path: '/my-profile', icon: UserCircle, label: 'My Profile' },
+  { path: '/attendance', icon: Clock, label: 'Attendance' },
+  { path: '/tasks', icon: CheckSquare, label: 'Tasks' },
+  { path: '/meetings', icon: Video, label: 'Meetings' },
+  { path: '/leaves', icon: Calendar, label: 'Leaves' },
+  { path: '/intake-form', icon: UserPlus, label: 'Intake Form' },
+  { path: '/intake-new', icon: UserPlus, label: 'Intake New' },
+  { path: '/ar-followup', icon: FileText, label: 'AR Follow Up' },
+  { path: '/vob-bob', icon: ClipboardList, label: 'VOB / BOB' },
+  { path: '/vob-bob-autofill', icon: FileText, label: 'VOB Auto-Fill' },
+  { path: '/manual-vob', icon: FileText, label: 'Manual VOB' },
+  { path: '/time-tracking', icon: Timer, label: 'Time Tracking' },
+  { path: '/documents', icon: FolderOpen, label: 'Documents' },
+  { path: '/chat', icon: MessageSquare, label: 'Chat' },
+  { path: '/ai-assistant', icon: Bot, label: 'AI Assistant' },
+  { path: '/notifications', icon: Bell, label: 'Notifications' },
+  { path: '/settings', icon: Settings, label: 'Settings' },
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
 ];
 
 // Billing group - Patient intake and insurance verification

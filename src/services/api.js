@@ -1090,6 +1090,7 @@ export const meetingsAPI = {
   getAll: async (filters = {}) => {
     checkSupabase();
     
+<<<<<<< HEAD
     try {
       // First try with participants join
       let query = supabase
@@ -1137,6 +1138,41 @@ export const meetingsAPI = {
       console.error('Exception in getAll meetings:', err);
       return [];
     }
+=======
+    const user = getCurrentUser();
+    if (!user) return [];
+    
+    let query = supabase
+      .from('meetings')
+      .select('*')
+      .order('start_time', { ascending: true });
+    
+    // Users see meetings they organized or are participants of
+    // Note: For proper filtering, we'd need a join with meeting_participants
+    // For now, we fetch all and filter client-side for participants
+    
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters.fromDate) {
+      query = query.gte('start_time', filters.fromDate);
+    }
+    if (filters.toDate) {
+      query = query.lte('start_time', filters.toDate);
+    }
+    
+    const { data, error } = await query;
+    if (error) handleError(error, 'fetch meetings');
+    
+    // Filter to show only meetings user is part of
+    const userMeetings = (data || []).filter(m => {
+      if (m.organizer_id === user.id) return true;
+      const participants = m.participants || [];
+      return participants.some(p => p.user_id === user.id);
+    });
+    
+    return userMeetings;
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
   },
   
   getById: async (id) => {
@@ -1144,12 +1180,16 @@ export const meetingsAPI = {
     
     const { data, error } = await supabase
       .from('meetings')
+<<<<<<< HEAD
       .select(`
         *,
         participants:meeting_participants(
           id, user_id, status, joined_at, left_at, is_host, created_at
         )
       `)
+=======
+      .select('*')
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .eq('id', id)
       .single();
     
@@ -1157,6 +1197,7 @@ export const meetingsAPI = {
     return data;
   },
   
+<<<<<<< HEAD
   create: async (meetingData) => {
     checkSupabase();
     
@@ -1199,11 +1240,69 @@ export const meetingsAPI = {
     const { data, error } = await supabase
       .from('meetings')
       .update({ ...meeting, updated_at: new Date().toISOString() })
+=======
+  create: async (data) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    
+    const meetingData = {
+      title: data.title,
+      description: data.description || '',
+      organizer_id: user.id,
+      start_time: data.start_time,
+      end_time: data.end_time,
+      meeting_type: data.meeting_type || 'video',
+      participants: data.participants || [],
+      status: 'scheduled',
+      settings: data.settings || {},
+    };
+    
+    const { data: meeting, error } = await supabase
+      .from('meetings')
+      .insert(meetingData)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'create meeting');
+    
+    // Also create participant records
+    if (meeting && data.participants?.length > 0) {
+      const participantRecords = data.participants.map(p => ({
+        meeting_id: meeting.id,
+        user_id: p.user_id,
+        status: 'invited',
+        is_host: false,
+      }));
+      
+      // Add organizer as host
+      participantRecords.push({
+        meeting_id: meeting.id,
+        user_id: user.id,
+        status: 'accepted',
+        is_host: true,
+      });
+      
+      await supabase.from('meeting_participants').insert(participantRecords);
+    }
+    
+    return meeting;
+  },
+  
+  update: async (id, data) => {
+    checkSupabase();
+    
+    const { data: meeting, error } = await supabase
+      .from('meetings')
+      .update({ ...data, updated_at: new Date().toISOString() })
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .eq('id', id)
       .select()
       .single();
     
     if (error) handleError(error, 'update meeting');
+<<<<<<< HEAD
     
     // Update participants if provided
     if (participants) {
@@ -1228,16 +1327,24 @@ export const meetingsAPI = {
     }
     
     return data;
+=======
+    return meeting;
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
   },
   
   delete: async (id) => {
     checkSupabase();
     
+<<<<<<< HEAD
     // Delete participants first
     await supabase
       .from('meeting_participants')
       .delete()
       .eq('meeting_id', id);
+=======
+    // Also delete participant records
+    await supabase.from('meeting_participants').delete().eq('meeting_id', id);
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     
     const { error } = await supabase
       .from('meetings')
@@ -1248,6 +1355,7 @@ export const meetingsAPI = {
     return { success: true };
   },
   
+<<<<<<< HEAD
   updateParticipantStatus: async (meetingId, userId, status) => {
     checkSupabase();
     
@@ -1256,6 +1364,20 @@ export const meetingsAPI = {
       .update({ status, responded_at: new Date().toISOString() })
       .eq('meeting_id', meetingId)
       .eq('user_id', userId)
+=======
+  // Update participant status (accept/decline invite)
+  updateParticipantStatus: async (meetingId, status) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    
+    const { data, error } = await supabase
+      .from('meeting_participants')
+      .update({ status })
+      .eq('meeting_id', meetingId)
+      .eq('user_id', user.id)
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .select()
       .single();
     
@@ -1263,13 +1385,24 @@ export const meetingsAPI = {
     return data;
   },
   
+<<<<<<< HEAD
   recordJoin: async (meetingId, userId) => {
     checkSupabase();
     
+=======
+  // Record join/leave time
+  recordJoin: async (meetingId) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     const { data, error } = await supabase
       .from('meeting_participants')
       .update({ joined_at: new Date().toISOString() })
       .eq('meeting_id', meetingId)
+<<<<<<< HEAD
       .eq('user_id', userId)
       .select()
       .single();
@@ -1281,10 +1414,27 @@ export const meetingsAPI = {
   recordLeave: async (meetingId, userId) => {
     checkSupabase();
     
+=======
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'record meeting join');
+    return data;
+  },
+  
+  recordLeave: async (meetingId) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     const { data, error } = await supabase
       .from('meeting_participants')
       .update({ left_at: new Date().toISOString() })
       .eq('meeting_id', meetingId)
+<<<<<<< HEAD
       .eq('user_id', userId)
       .select()
       .single();
@@ -1300,43 +1450,90 @@ export const meetingsAPI = {
 
 export const personalRemindersAPI = {
   getAll: async () => {
+=======
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'record meeting leave');
+    return data;
+  },
+};
+
+// ============================================
+// Personal Reminders API (Google Tasks style)
+// ============================================
+
+export const personalRemindersAPI = {
+  getAll: async (filters = {}) => {
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     checkSupabase();
     
     const user = getCurrentUser();
     if (!user) return [];
     
+<<<<<<< HEAD
     const { data, error } = await supabase
+=======
+    let query = supabase
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .from('personal_reminders')
       .select('*')
       .eq('user_id', user.id)
       .order('reminder_time', { ascending: true });
     
+<<<<<<< HEAD
+=======
+    if (filters.status) {
+      query = query.eq('status', filters.status);
+    }
+    if (filters.category) {
+      query = query.eq('category', filters.category);
+    }
+    
+    const { data, error } = await query;
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     if (error) handleError(error, 'fetch reminders');
     return data || [];
   },
   
+<<<<<<< HEAD
   getUpcoming: async (minutes = 15) => {
+=======
+  getUpcoming: async (hours = 24) => {
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     checkSupabase();
     
     const user = getCurrentUser();
     if (!user) return [];
     
     const now = new Date();
+<<<<<<< HEAD
     const upcoming = new Date(now.getTime() + minutes * 60000);
+=======
+    const futureTime = new Date(now.getTime() + hours * 60 * 60 * 1000);
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
     
     const { data, error } = await supabase
       .from('personal_reminders')
       .select('*')
       .eq('user_id', user.id)
+<<<<<<< HEAD
       .eq('is_completed', false)
       .gte('reminder_time', now.toISOString())
       .lte('reminder_time', upcoming.toISOString())
+=======
+      .eq('status', 'pending')
+      .gte('reminder_time', now.toISOString())
+      .lte('reminder_time', futureTime.toISOString())
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .order('reminder_time', { ascending: true });
     
     if (error) handleError(error, 'fetch upcoming reminders');
     return data || [];
   },
   
+<<<<<<< HEAD
   create: async (reminderData) => {
     checkSupabase();
     
@@ -1350,10 +1547,35 @@ export const personalRemindersAPI = {
         user_id: user.id,
         is_completed: false
       })
+=======
+  create: async (data) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) throw new Error('User not authenticated');
+    
+    const reminderData = {
+      user_id: user.id,
+      title: data.title,
+      description: data.description || '',
+      reminder_time: data.reminder_time,
+      due_date: data.due_date || null,
+      priority: data.priority || 'medium',
+      status: 'pending',
+      category: data.category || 'task',
+      contact_info: data.contact_info || '',
+      repeat_type: data.repeat_type || null,
+    };
+    
+    const { data: reminder, error } = await supabase
+      .from('personal_reminders')
+      .insert(reminderData)
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .select()
       .single();
     
     if (error) handleError(error, 'create reminder');
+<<<<<<< HEAD
     return data;
   },
   
@@ -1363,25 +1585,51 @@ export const personalRemindersAPI = {
     const { data, error } = await supabase
       .from('personal_reminders')
       .update({ ...reminderData, updated_at: new Date().toISOString() })
+=======
+    return reminder;
+  },
+  
+  update: async (id, data) => {
+    checkSupabase();
+    
+    const { data: reminder, error } = await supabase
+      .from('personal_reminders')
+      .update({ ...data, updated_at: new Date().toISOString() })
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .eq('id', id)
       .select()
       .single();
     
     if (error) handleError(error, 'update reminder');
+<<<<<<< HEAD
     return data;
+=======
+    return reminder;
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
   },
   
   complete: async (id) => {
     checkSupabase();
     
+<<<<<<< HEAD
     const { data, error } = await supabase
       .from('personal_reminders')
       .update({ is_completed: true, completed_at: new Date().toISOString() })
+=======
+    const { data: reminder, error } = await supabase
+      .from('personal_reminders')
+      .update({ 
+        status: 'completed', 
+        completed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString() 
+      })
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       .eq('id', id)
       .select()
       .single();
     
     if (error) handleError(error, 'complete reminder');
+<<<<<<< HEAD
     return data;
   },
   
@@ -1395,13 +1643,31 @@ export const personalRemindersAPI = {
       .update({ 
         reminder_time: newTime.toISOString(),
         snoozed_until: newTime.toISOString()
+=======
+    return reminder;
+  },
+  
+  snooze: async (id, snoozeUntil) => {
+    checkSupabase();
+    
+    const { data: reminder, error } = await supabase
+      .from('personal_reminders')
+      .update({ 
+        status: 'snoozed',
+        snooze_until: snoozeUntil,
+        updated_at: new Date().toISOString() 
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       })
       .eq('id', id)
       .select()
       .single();
     
     if (error) handleError(error, 'snooze reminder');
+<<<<<<< HEAD
     return data;
+=======
+    return reminder;
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
   },
   
   delete: async (id) => {
@@ -1414,7 +1680,11 @@ export const personalRemindersAPI = {
     
     if (error) handleError(error, 'delete reminder');
     return { success: true };
+<<<<<<< HEAD
   }
+=======
+  },
+>>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
 };
 
 // ============================================

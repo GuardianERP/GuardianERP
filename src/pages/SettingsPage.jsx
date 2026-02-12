@@ -28,7 +28,7 @@ function SettingsPage() {
 
   // Check if user is admin
   const isAdmin = ['admin', 'super_admin', 'Admin', 'Super_Admin'].includes(user?.role);
-  const isSuperAdmin = ['super_admin', 'Super_Admin'].includes(user?.role);
+  const isSuperAdmin = ['admin', 'super_admin', 'Admin', 'Super_Admin'].includes(user?.role);
 
   // System notification state
   const [releaseNotification, setReleaseNotification] = useState({

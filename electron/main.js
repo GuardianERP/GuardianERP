@@ -917,9 +917,29 @@ ipcMain.handle('notifications:markAllRead', async (event, userId) => {
 });
 
 ipcMain.handle('notifications:show', async (event, { title, body, icon }) => {
-  const notification = new Notification({ title, body, icon });
-  notification.show();
-  return { success: true };
+  try {
+    const notification = new Notification({ 
+      title: title || 'Guardian ERP', 
+      body: body || '',
+      icon: icon || path.join(__dirname, '../public/icon.png'),
+      silent: false, // Play sound
+    });
+    
+    // When user clicks notification, bring app to front
+    notification.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    
+    notification.show();
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to show notification:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('notifications:delete', async (event, id) => {
