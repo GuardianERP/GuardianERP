@@ -455,12 +455,20 @@ export const employeesAPI = {
     const newNum = parseInt(lastCode.replace('EMP', '')) + 1;
     const employeeCode = `EMP${String(newNum).padStart(3, '0')}`;
     
-    // Clean data - handle empty numeric fields
+    // Clean data - handle empty date and numeric fields
+    const dateFields = ['date_of_birth', 'joining_date'];
     const cleanData = {
       ...data,
       employee_code: employeeCode,
       salary_pkr: data.salary_pkr ? parseFloat(data.salary_pkr) : 0,
     };
+    
+    // Convert empty strings to null for date fields
+    dateFields.forEach(field => {
+      if (cleanData[field] === '' || cleanData[field] === undefined) {
+        cleanData[field] = null;
+      }
+    });
     
     const { data: employee, error } = await supabase
       .from('employees')
@@ -508,9 +516,23 @@ export const employeesAPI = {
       data = filteredData;
     }
     
+    // Clean data - convert empty strings to null for date fields
+    const dateFields = ['date_of_birth', 'joining_date'];
+    const cleanData = { ...data };
+    dateFields.forEach(field => {
+      if (cleanData[field] === '' || cleanData[field] === undefined) {
+        cleanData[field] = null;
+      }
+    });
+    
+    // Also handle numeric fields
+    if (cleanData.salary_pkr !== undefined) {
+      cleanData.salary_pkr = cleanData.salary_pkr ? parseFloat(cleanData.salary_pkr) : 0;
+    }
+    
     const { data: employee, error } = await supabase
       .from('employees')
-      .update({ ...data, updated_at: new Date().toISOString() })
+      .update({ ...cleanData, updated_at: new Date().toISOString() })
       .eq('id', id)
       .select()
       .single();
@@ -1058,6 +1080,341 @@ export const tasksAPI = {
     if (error) handleError(error, 'update task status');
     return task;
   },
+};
+
+// ============================================
+// Meetings API
+// ============================================
+
+export const meetingsAPI = {
+  getAll: async (filters = {}) => {
+    checkSupabase();
+    
+    try {
+      // First try with participants join
+      let query = supabase
+        .from('meetings')
+        .select(`
+          *,
+          participants:meeting_participants(
+            id, user_id, status, joined_at, left_at, is_host, created_at
+          )
+        `)
+        .order('start_time', { ascending: true });
+      
+      if (filters.status) {
+        query = query.eq('status', filters.status);
+      }
+      if (filters.organizerId) {
+        query = query.eq('organizer_id', filters.organizerId);
+      }
+      if (filters.startDate) {
+        query = query.gte('start_time', filters.startDate);
+      }
+      if (filters.endDate) {
+        query = query.lte('start_time', filters.endDate);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching meetings with participants:', error);
+        // Fallback: fetch just meetings without the join
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('meetings')
+          .select('*')
+          .order('start_time', { ascending: true });
+        
+        if (fallbackError) {
+          console.error('Fallback also failed:', fallbackError);
+          return [];
+        }
+        return (fallbackData || []).map(m => ({ ...m, participants: [] }));
+      }
+      
+      return data || [];
+    } catch (err) {
+      console.error('Exception in getAll meetings:', err);
+      return [];
+    }
+  },
+  
+  getById: async (id) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('meetings')
+      .select(`
+        *,
+        participants:meeting_participants(
+          id, user_id, status, joined_at, left_at, is_host, created_at
+        )
+      `)
+      .eq('id', id)
+      .single();
+    
+    if (error) handleError(error, 'fetch meeting');
+    return data;
+  },
+  
+  create: async (meetingData) => {
+    checkSupabase();
+    
+    const { participants, ...meeting } = meetingData;
+    
+    // Create meeting
+    const { data: createdMeeting, error: meetingError } = await supabase
+      .from('meetings')
+      .insert(meeting)
+      .select()
+      .single();
+    
+    if (meetingError) handleError(meetingError, 'create meeting');
+    
+    // Add participants
+    if (participants && participants.length > 0) {
+      const participantsData = participants.map(p => ({
+        meeting_id: createdMeeting.id,
+        user_id: p.user_id,
+        status: p.status || 'invited'
+      }));
+      
+      const { error: participantsError } = await supabase
+        .from('meeting_participants')
+        .insert(participantsData);
+      
+      if (participantsError) {
+        console.error('Error adding participants:', participantsError);
+      }
+    }
+    
+    return createdMeeting;
+  },
+  
+  update: async (id, meetingData) => {
+    checkSupabase();
+    
+    const { participants, ...meeting } = meetingData;
+    
+    const { data, error } = await supabase
+      .from('meetings')
+      .update({ ...meeting, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'update meeting');
+    
+    // Update participants if provided
+    if (participants) {
+      // Delete existing participants
+      await supabase
+        .from('meeting_participants')
+        .delete()
+        .eq('meeting_id', id);
+      
+      // Add new participants
+      if (participants.length > 0) {
+        const participantsData = participants.map(p => ({
+          meeting_id: id,
+          user_id: p.user_id,
+          status: p.status || 'invited'
+        }));
+        
+        await supabase
+          .from('meeting_participants')
+          .insert(participantsData);
+      }
+    }
+    
+    return data;
+  },
+  
+  delete: async (id) => {
+    checkSupabase();
+    
+    // Delete participants first
+    await supabase
+      .from('meeting_participants')
+      .delete()
+      .eq('meeting_id', id);
+    
+    const { error } = await supabase
+      .from('meetings')
+      .delete()
+      .eq('id', id);
+    
+    if (error) handleError(error, 'delete meeting');
+    return { success: true };
+  },
+  
+  updateParticipantStatus: async (meetingId, userId, status) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('meeting_participants')
+      .update({ status, responded_at: new Date().toISOString() })
+      .eq('meeting_id', meetingId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'update participant status');
+    return data;
+  },
+  
+  recordJoin: async (meetingId, userId) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('meeting_participants')
+      .update({ joined_at: new Date().toISOString() })
+      .eq('meeting_id', meetingId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'record join');
+    return data;
+  },
+  
+  recordLeave: async (meetingId, userId) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('meeting_participants')
+      .update({ left_at: new Date().toISOString() })
+      .eq('meeting_id', meetingId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'record leave');
+    return data;
+  }
+};
+
+// ============================================
+// Personal Reminders API
+// ============================================
+
+export const personalRemindersAPI = {
+  getAll: async () => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) return [];
+    
+    const { data, error } = await supabase
+      .from('personal_reminders')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('reminder_time', { ascending: true });
+    
+    if (error) handleError(error, 'fetch reminders');
+    return data || [];
+  },
+  
+  getUpcoming: async (minutes = 15) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) return [];
+    
+    const now = new Date();
+    const upcoming = new Date(now.getTime() + minutes * 60000);
+    
+    const { data, error } = await supabase
+      .from('personal_reminders')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_completed', false)
+      .gte('reminder_time', now.toISOString())
+      .lte('reminder_time', upcoming.toISOString())
+      .order('reminder_time', { ascending: true });
+    
+    if (error) handleError(error, 'fetch upcoming reminders');
+    return data || [];
+  },
+  
+  create: async (reminderData) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    if (!user) throw new Error('Not authenticated');
+    
+    const { data, error } = await supabase
+      .from('personal_reminders')
+      .insert({
+        ...reminderData,
+        user_id: user.id,
+        is_completed: false
+      })
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'create reminder');
+    return data;
+  },
+  
+  update: async (id, reminderData) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('personal_reminders')
+      .update({ ...reminderData, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'update reminder');
+    return data;
+  },
+  
+  complete: async (id) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('personal_reminders')
+      .update({ is_completed: true, completed_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'complete reminder');
+    return data;
+  },
+  
+  snooze: async (id, minutes = 10) => {
+    checkSupabase();
+    
+    const newTime = new Date(Date.now() + minutes * 60000);
+    
+    const { data, error } = await supabase
+      .from('personal_reminders')
+      .update({ 
+        reminder_time: newTime.toISOString(),
+        snoozed_until: newTime.toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'snooze reminder');
+    return data;
+  },
+  
+  delete: async (id) => {
+    checkSupabase();
+    
+    const { error } = await supabase
+      .from('personal_reminders')
+      .delete()
+      .eq('id', id);
+    
+    if (error) handleError(error, 'delete reminder');
+    return { success: true };
+  }
 };
 
 // ============================================
@@ -1768,6 +2125,38 @@ export const reportsAPI = {
         pending: revenue.data?.filter(r => r.status === 'pending').reduce((sum, r) => sum + parseFloat(r.amount || 0), 0) || 0,
         paid: revenue.data?.filter(r => r.status === 'received').reduce((sum, r) => sum + parseFloat(r.amount || 0), 0) || 0,
       },
+    };
+  },
+  
+  /**
+   * Get total salaries for next month (sum of all active employees' salaries)
+   */
+  getNextMonthSalaries: async () => {
+    checkSupabase();
+    
+    if (!isAdminOrManager()) {
+      throw new Error('Access denied. Only admins can view salary information.');
+    }
+    
+    const { data, error } = await supabase
+      .from('employees')
+      .select('salary_pkr, status')
+      .eq('status', 'active');
+    
+    if (error) handleError(error, 'fetch salaries');
+    
+    const totalSalary = data?.reduce((sum, emp) => sum + parseFloat(emp.salary_pkr || 0), 0) || 0;
+    const employeeCount = data?.length || 0;
+    
+    // Get next month name
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    const monthName = nextMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+    
+    return {
+      total: totalSalary,
+      employeeCount,
+      month: monthName,
     };
   },
 };

@@ -1,11 +1,275 @@
 /**
  * Guardian Desktop ERP - Notification Service
  * Handles auto-notifications: welcome (new employee), birthday, chat
+ * Meeting/Task/Reminder notifications at 30min, 20min, 5min, 1min before
  */
 
 import { supabase } from './supabaseClient';
 
+// Check if we're in Electron environment
+const isElectron = typeof window !== 'undefined' && window.electronAPI;
+
+// Store notification timers
+const notificationTimers = new Map();
+
 const notificationService = {
+  /**
+   * Show system tray notification (works in Electron)
+   */
+  showSystemNotification: (title, message, options = {}) => {
+    console.log('[NotificationService] Showing notification:', { title, message, isElectron });
+    
+    // Try Electron notification first
+    if (isElectron && window.electronAPI?.notifications?.show) {
+      console.log('[NotificationService] Using Electron notifications');
+      window.electronAPI.notifications.show(title, message, null);
+      return;
+    }
+    
+    // Fallback to Web Notification API
+    if ('Notification' in window) {
+      console.log('[NotificationService] Using Web Notification API, permission:', Notification.permission);
+      if (Notification.permission === 'granted') {
+        new Notification(title, {
+          body: message,
+          icon: '/logo-brand.png',
+          tag: options.tag || 'guardian-erp',
+          requireInteraction: options.urgent || false,
+          ...options
+        });
+      } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+          console.log('[NotificationService] Permission after request:', permission);
+          if (permission === 'granted') {
+            new Notification(title, {
+              body: message,
+              icon: '/logo-brand.png',
+              ...options
+            });
+          }
+        });
+      } else {
+        console.warn('[NotificationService] Notifications are denied by user');
+      }
+    } else {
+      console.warn('[NotificationService] Notification API not available');
+    }
+  },
+
+  /**
+   * Request notification permission
+   */
+  requestPermission: async () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      console.log('[NotificationService] Permission result:', permission);
+      return permission;
+    }
+    console.log('[NotificationService] Current permission:', Notification.permission);
+    return Notification.permission;
+  },
+  
+  /**
+   * Test notification - call this to verify notifications are working
+   */
+  testNotification: () => {
+    console.log('[NotificationService] Testing notification...');
+    console.log('[NotificationService] isElectron:', isElectron);
+    console.log('[NotificationService] Notification API available:', 'Notification' in window);
+    console.log('[NotificationService] Permission:', 'Notification' in window ? Notification.permission : 'N/A');
+    
+    notificationService.showSystemNotification(
+      '🔔 Test Notification',
+      'Guardian ERP notifications are working! You will receive alerts for meetings, tasks, and reminders.',
+      { urgent: false }
+    );
+    
+    return {
+      isElectron,
+      notificationAPIAvailable: 'Notification' in window,
+      permission: 'Notification' in window ? Notification.permission : 'N/A'
+    };
+  },
+
+  /**
+   * Schedule reminder notifications for a meeting
+   * Sends at 30min, 20min, 5min, and 1min before
+   */
+  scheduleMeetingReminders: (meeting, onOverlayNotification) => {
+    const meetingTime = new Date(meeting.start_time);
+    const now = new Date();
+    const timerId = `meeting_${meeting.id}`;
+    
+    // Clear any existing timers for this meeting
+    notificationService.clearScheduledNotifications(timerId);
+    
+    const intervals = [
+      { minutes: 30, label: '30 minutes' },
+      { minutes: 20, label: '20 minutes' },
+      { minutes: 5, label: '5 minutes' },
+      { minutes: 1, label: '1 minute' }
+    ];
+    
+    const timers = [];
+    
+    intervals.forEach(({ minutes, label }) => {
+      const notifyTime = new Date(meetingTime.getTime() - minutes * 60 * 1000);
+      const delay = notifyTime.getTime() - now.getTime();
+      
+      if (delay > 0) {
+        const timer = setTimeout(() => {
+          const title = `📅 Meeting in ${label}`;
+          const message = `"${meeting.title}" starts in ${label}`;
+          
+          // System tray notification
+          notificationService.showSystemNotification(title, message, { urgent: minutes <= 5 });
+          
+          // Overlay notification callback
+          if (onOverlayNotification) {
+            onOverlayNotification({
+              type: 'meeting',
+              title,
+              message,
+              meetingId: meeting.id,
+              urgent: minutes <= 5
+            });
+          }
+        }, delay);
+        
+        timers.push(timer);
+      }
+    });
+    
+    notificationTimers.set(timerId, timers);
+  },
+
+  /**
+   * Schedule reminder notifications for a task
+   */
+  scheduleTaskReminders: (task, onOverlayNotification) => {
+    if (!task.due_date) return;
+    
+    const dueTime = new Date(task.due_date);
+    const now = new Date();
+    const timerId = `task_${task.id}`;
+    
+    notificationService.clearScheduledNotifications(timerId);
+    
+    const intervals = [
+      { minutes: 30, label: '30 minutes' },
+      { minutes: 20, label: '20 minutes' },
+      { minutes: 5, label: '5 minutes' },
+      { minutes: 1, label: '1 minute' }
+    ];
+    
+    const timers = [];
+    
+    intervals.forEach(({ minutes, label }) => {
+      const notifyTime = new Date(dueTime.getTime() - minutes * 60 * 1000);
+      const delay = notifyTime.getTime() - now.getTime();
+      
+      if (delay > 0) {
+        const timer = setTimeout(() => {
+          const title = `📋 Task due in ${label}`;
+          const message = `"${task.title}" is due in ${label}`;
+          
+          notificationService.showSystemNotification(title, message, { urgent: minutes <= 5 });
+          
+          if (onOverlayNotification) {
+            onOverlayNotification({
+              type: 'task',
+              title,
+              message,
+              taskId: task.id,
+              urgent: minutes <= 5
+            });
+          }
+        }, delay);
+        
+        timers.push(timer);
+      }
+    });
+    
+    notificationTimers.set(timerId, timers);
+  },
+
+  /**
+   * Schedule personal reminder notifications
+   */
+  schedulePersonalReminder: (reminder, onOverlayNotification) => {
+    if (!reminder.reminder_time) return;
+    
+    const reminderTime = new Date(reminder.reminder_time);
+    const now = new Date();
+    const timerId = `reminder_${reminder.id}`;
+    
+    notificationService.clearScheduledNotifications(timerId);
+    
+    const intervals = [
+      { minutes: 30, label: '30 minutes' },
+      { minutes: 20, label: '20 minutes' },
+      { minutes: 5, label: '5 minutes' },
+      { minutes: 1, label: '1 minute' },
+      { minutes: 0, label: 'now' }
+    ];
+    
+    const timers = [];
+    
+    intervals.forEach(({ minutes, label }) => {
+      const notifyTime = new Date(reminderTime.getTime() - minutes * 60 * 1000);
+      const delay = notifyTime.getTime() - now.getTime();
+      
+      if (delay > 0) {
+        const timer = setTimeout(() => {
+          const title = minutes === 0 ? `🔔 Reminder: ${reminder.title}` : `🔔 Reminder in ${label}`;
+          const message = minutes === 0 
+            ? reminder.description || reminder.title
+            : `"${reminder.title}" reminder in ${label}`;
+          
+          notificationService.showSystemNotification(title, message, { 
+            urgent: minutes <= 5,
+            requireInteraction: minutes === 0
+          });
+          
+          if (onOverlayNotification) {
+            onOverlayNotification({
+              type: 'reminder',
+              title,
+              message,
+              reminderId: reminder.id,
+              urgent: minutes <= 5
+            });
+          }
+        }, delay);
+        
+        timers.push(timer);
+      }
+    });
+    
+    notificationTimers.set(timerId, timers);
+  },
+
+  /**
+   * Clear scheduled notifications for a specific item
+   */
+  clearScheduledNotifications: (timerId) => {
+    const timers = notificationTimers.get(timerId);
+    if (timers) {
+      timers.forEach(timer => clearTimeout(timer));
+      notificationTimers.delete(timerId);
+    }
+  },
+
+  /**
+   * Clear all scheduled notifications
+   */
+  clearAllScheduledNotifications: () => {
+    notificationTimers.forEach((timers) => {
+      timers.forEach(timer => clearTimeout(timer));
+    });
+    notificationTimers.clear();
+  },
+
   /**
    * Send app update notification to ALL employees
    * Call this after a new release is pushed
@@ -186,6 +450,91 @@ const notificationService = {
 
   unsubscribe: (channel) => {
     if (channel) supabase.removeChannel(channel);
+  },
+
+  /**
+   * Initialize notifications for all upcoming meetings, tasks, and reminders
+   * Call this on app start or when user logs in
+   */
+  initializeUpcomingNotifications: async (userId, onOverlayNotification) => {
+    const now = new Date();
+    const thirtyMinFromNow = new Date(now.getTime() + 35 * 60 * 1000); // 35 min to catch 30 min reminders
+    
+    try {
+      // Get upcoming meetings (within next 35 minutes)
+      const { data: meetings } = await supabase
+        .from('meetings')
+        .select('*')
+        .gte('start_time', now.toISOString())
+        .lte('start_time', thirtyMinFromNow.toISOString())
+        .order('start_time', { ascending: true });
+
+      if (meetings) {
+        meetings.forEach(meeting => {
+          notificationService.scheduleMeetingReminders(meeting, onOverlayNotification);
+        });
+        console.log(`Scheduled notifications for ${meetings.length} upcoming meetings`);
+      }
+
+      // Get upcoming tasks with due dates (within next 35 minutes)
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('assigned_to', userId)
+        .neq('status', 'completed')
+        .gte('due_date', now.toISOString())
+        .lte('due_date', thirtyMinFromNow.toISOString())
+        .order('due_date', { ascending: true });
+
+      if (tasks) {
+        tasks.forEach(task => {
+          notificationService.scheduleTaskReminders(task, onOverlayNotification);
+        });
+        console.log(`Scheduled notifications for ${tasks.length} upcoming tasks`);
+      }
+
+      // Get upcoming personal reminders (within next 35 minutes)
+      const { data: reminders } = await supabase
+        .from('personal_reminders')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('active', true)
+        .gte('reminder_time', now.toISOString())
+        .lte('reminder_time', thirtyMinFromNow.toISOString())
+        .order('reminder_time', { ascending: true });
+
+      if (reminders) {
+        reminders.forEach(reminder => {
+          notificationService.schedulePersonalReminder(reminder, onOverlayNotification);
+        });
+        console.log(`Scheduled notifications for ${reminders.length} upcoming reminders`);
+      }
+
+      return { meetings: meetings?.length || 0, tasks: tasks?.length || 0, reminders: reminders?.length || 0 };
+    } catch (error) {
+      console.error('Failed to initialize upcoming notifications:', error);
+      return { meetings: 0, tasks: 0, reminders: 0 };
+    }
+  },
+
+  /**
+   * Start polling for upcoming items every minute
+   * Returns a function to stop polling
+   */
+  startNotificationPolling: (userId, onOverlayNotification) => {
+    // Initial load
+    notificationService.initializeUpcomingNotifications(userId, onOverlayNotification);
+    
+    // Poll every minute
+    const pollInterval = setInterval(() => {
+      notificationService.initializeUpcomingNotifications(userId, onOverlayNotification);
+    }, 60 * 1000);
+    
+    // Return cleanup function
+    return () => {
+      clearInterval(pollInterval);
+      notificationService.clearAllScheduledNotifications();
+    };
   },
 };
 

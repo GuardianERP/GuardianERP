@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Activity,
   RefreshCw,
+  Wallet,
 } from 'lucide-react';
 import { reportsAPI } from '../services/api';
 import { StatsSkeleton, InlineSpinner } from '../components/common/LoadingSpinner';
@@ -112,6 +113,7 @@ function DashboardPage() {
     expenses: { total: 0, pending: 0, approved: 0 },
     revenue: { total: 0, paid: 0, pending: 0 },
   });
+  const [salaryData, setSalaryData] = useState({ total: 0, employeeCount: 0, month: '' });
 
   // Check if user is admin
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -128,7 +130,10 @@ function DashboardPage() {
         setLoading(true);
       }
       setError(null);
+      
+      // Fetch overview data
       const overview = await reportsAPI.getOverview();
+      
       // Merge with default stats to ensure all properties exist
       setStats({
         employees: { total: 0, active: 0, onLeave: 0, ...overview?.employees },
@@ -136,6 +141,16 @@ function DashboardPage() {
         expenses: { total: 0, pending: 0, approved: 0, ...overview?.expenses },
         revenue: { total: 0, paid: 0, pending: 0, ...overview?.revenue },
       });
+      
+      // Fetch salary data for admins
+      if (user?.role === 'admin' || user?.role === 'super_admin') {
+        try {
+          const salary = await reportsAPI.getNextMonthSalaries();
+          setSalaryData(salary);
+        } catch (salaryError) {
+          console.log('Could not fetch salary data:', salaryError.message);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
       setError(error.message || 'Failed to load dashboard data');
@@ -244,7 +259,7 @@ function DashboardPage() {
       </div>
 
       {/* Stats Grid - Different view for admins vs employees */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {isAdmin ? (
           // Admin sees all financial stats
           <>
@@ -283,6 +298,15 @@ function DashboardPage() {
               icon={DollarSign}
               color="bg-purple-600"
               onClick={() => navigate('/revenue')}
+            />
+            <StatCard
+              title={`Salaries (${salaryData.month?.split(' ')[0] || 'Next Month'})`}
+              value={formatCurrency(salaryData.total)}
+              change={`${salaryData.employeeCount} employees`}
+              changeType="positive"
+              icon={Wallet}
+              color="bg-orange-600"
+              onClick={() => navigate('/employees')}
             />
           </>
         ) : (

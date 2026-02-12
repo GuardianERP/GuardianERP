@@ -15,6 +15,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
 const AttendancePage = lazy(() => import('./pages/AttendancePage'));
 const TasksPage = lazy(() => import('./pages/TasksPage'));
+const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const LeavesPage = lazy(() => import('./pages/LeavesPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const RevenuePage = lazy(() => import('./pages/RevenuePage'));
@@ -42,6 +43,7 @@ import useSilentMonitoring from './hooks/useSilentMonitoring';
 import useSilentCameraMonitoring from './hooks/useSilentCameraMonitoring';
 import { usePresenceInit } from './hooks/usePresence';
 import notificationService from './services/notificationService';
+import OverlayNotification from './components/OverlayNotification';
 
 // Protected Route wrapper
 function ProtectedRoute({ children }) {
@@ -104,6 +106,28 @@ function App() {
 // Inner component that uses monitoring hook after auth is available
 function AppWithMonitoring() {
   const { user, isLoggedIn } = useAuth();
+  const [overlayNotifications, setOverlayNotifications] = React.useState([]);
+  
+  // Handle overlay notification from the notification service
+  const handleOverlayNotification = React.useCallback((notification) => {
+    const id = Date.now();
+    setOverlayNotifications(prev => [...prev, { ...notification, id }]);
+    
+    // Auto-dismiss after 30 seconds if not urgent
+    if (!notification.urgent) {
+      setTimeout(() => {
+        setOverlayNotifications(prev => prev.filter(n => n.id !== id));
+      }, 30000);
+    }
+  }, []);
+  
+  const dismissOverlayNotification = React.useCallback((id) => {
+    setOverlayNotifications(prev => prev.filter(n => n.id !== id));
+  }, []);
+  
+  const dismissAllOverlayNotifications = React.useCallback(() => {
+    setOverlayNotifications([]);
+  }, []);
   
   // Debug: Log user info
   React.useEffect(() => {
@@ -117,8 +141,37 @@ function AppWithMonitoring() {
 
       // Check for birthday notifications once per day
       notificationService.checkAndSendBirthdayNotifications();
+      
+      // Request notification permission and test
+      const initNotifications = async () => {
+        const permission = await notificationService.requestPermission();
+        console.log('[App] Notification permission:', permission);
+        
+        // Send a welcome notification on first use (once per session)
+        const notifTestKey = 'guardian_notif_tested';
+        if (permission === 'granted' && !sessionStorage.getItem(notifTestKey)) {
+          sessionStorage.setItem(notifTestKey, 'true');
+          // Delay test notification slightly so user can see it
+          setTimeout(() => {
+            notificationService.showSystemNotification(
+              '✅ Notifications Enabled',
+              'You will receive alerts for meetings, tasks, and reminders at 30, 20, 5, and 1 minute before.',
+              { tag: 'guardian-welcome' }
+            );
+          }, 2000);
+        }
+      };
+      initNotifications();
+      
+      // Start polling for upcoming meetings, tasks, and reminders
+      const stopPolling = notificationService.startNotificationPolling(user.id, handleOverlayNotification);
+      
+      // Cleanup on unmount
+      return () => {
+        stopPolling();
+      };
     }
-  }, [isLoggedIn, user]);
+  }, [isLoggedIn, user, handleOverlayNotification]);
   
   // Initialize presence tracking - automatically tracks when app is open
   // No clock-in needed - if app is open, employee is online
@@ -133,7 +186,17 @@ function AppWithMonitoring() {
   useSilentCameraMonitoring(isLoggedIn ? user?.employeeId : null);
   
   return (
-    <Routes>
+    <>
+      {/* Overlay Notifications for meetings, tasks, reminders */}
+      {isLoggedIn && (
+        <OverlayNotification
+          notifications={overlayNotifications}
+          onDismiss={dismissOverlayNotification}
+          onDismissAll={dismissAllOverlayNotifications}
+        />
+      )}
+      
+      <Routes>
         {/* Public Routes */}
         <Route 
           path="/auth" 
@@ -158,6 +221,7 @@ function AppWithMonitoring() {
           <Route path="my-profile" element={<MyProfilePage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="tasks" element={<TasksPage />} />
+          <Route path="meetings" element={<MeetingsPage />} />
           <Route path="leaves" element={<LeavesPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
@@ -186,6 +250,7 @@ function AppWithMonitoring() {
         {/* Catch all - redirect to dashboard */}
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
+    </>
   );
 }
 
