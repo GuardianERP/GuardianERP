@@ -1,50 +1,16 @@
-/**
+﻿/**
  * Guardian Desktop ERP - Notification Service
  * Handles auto-notifications: welcome (new employee), birthday, chat
-<<<<<<< HEAD
  * Meeting/Task/Reminder notifications at 30min, 20min, 5min, 1min before
-=======
- * Now with native desktop notifications!
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
  */
 
 import { supabase } from './supabaseClient';
 
-<<<<<<< HEAD
 // Check if we're in Electron environment
 const isElectron = typeof window !== 'undefined' && window.electronAPI;
 
 // Store notification timers
 const notificationTimers = new Map();
-=======
-/**
- * Show a native desktop notification (Windows toast/Mac notification)
- * Works even when app is minimized or user is in another window
- */
-const showNativeNotification = async (title, body) => {
-  try {
-    // Try Electron native notification first (for desktop app)
-    if (window.electronAPI?.notifications?.show) {
-      await window.electronAPI.notifications.show(title, body);
-      return;
-    }
-    
-    // Fallback to browser Notification API (for web/PWA)
-    if ('Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification(title, { body, icon: '/icon.png' });
-      } else if (Notification.permission !== 'denied') {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          new Notification(title, { body, icon: '/icon.png' });
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Failed to show native notification:', error);
-  }
-};
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
 
 const notificationService = {
   /**
@@ -113,7 +79,7 @@ const notificationService = {
     console.log('[NotificationService] Permission:', 'Notification' in window ? Notification.permission : 'N/A');
     
     notificationService.showSystemNotification(
-      '🔔 Test Notification',
+      'ðŸ”” Test Notification',
       'Guardian ERP notifications are working! You will receive alerts for meetings, tasks, and reminders.',
       { urgent: false }
     );
@@ -152,7 +118,7 @@ const notificationService = {
       
       if (delay > 0) {
         const timer = setTimeout(() => {
-          const title = `📅 Meeting in ${label}`;
+          const title = `ðŸ“… Meeting in ${label}`;
           const message = `"${meeting.title}" starts in ${label}`;
           
           // System tray notification
@@ -204,7 +170,7 @@ const notificationService = {
       
       if (delay > 0) {
         const timer = setTimeout(() => {
-          const title = `📋 Task due in ${label}`;
+          const title = `ðŸ“‹ Task due in ${label}`;
           const message = `"${task.title}" is due in ${label}`;
           
           notificationService.showSystemNotification(title, message, { urgent: minutes <= 5 });
@@ -255,7 +221,7 @@ const notificationService = {
       
       if (delay > 0) {
         const timer = setTimeout(() => {
-          const title = minutes === 0 ? `🔔 Reminder: ${reminder.title}` : `🔔 Reminder in ${label}`;
+          const title = minutes === 0 ? `ðŸ”” Reminder: ${reminder.title}` : `ðŸ”” Reminder in ${label}`;
           const message = minutes === 0 
             ? reminder.description || reminder.title
             : `"${reminder.title}" reminder in ${label}`;
@@ -322,7 +288,7 @@ const notificationService = {
         .filter(e => e.user_id)
         .map(e => ({
           user_id: e.user_id,
-          title: `🚀 Guardian ERP v${version} Released!`,
+          title: `ðŸš€ Guardian ERP v${version} Released!`,
           message: releaseNotes || 'A new version is available. Please restart the app to update.',
           type: 'system',
           link: '/notifications',
@@ -360,7 +326,7 @@ const notificationService = {
         .filter(e => e.user_id) // ensure they have user_id
         .map(e => ({
           user_id: e.user_id,
-          title: '🎉 New Team Member!',
+          title: 'ðŸŽ‰ New Team Member!',
           message: `Welcome ${name}${department ? ` to ${department}` : ''} to the team! Say hello!`,
           type: 'welcome',
           link: '/employees',
@@ -426,7 +392,7 @@ const notificationService = {
 
       for (const bday of birthdayPeople) {
         const name = `${bday.first_name || ''} ${bday.last_name || ''}`.trim();
-        const message = `🎂 Today is ${name}'s birthday! Wish them a happy birthday!`;
+        const message = `ðŸŽ‚ Today is ${name}'s birthday! Wish them a happy birthday!`;
 
         // Skip if already sent
         if (existingMessages.has(message)) continue;
@@ -435,7 +401,7 @@ const notificationService = {
           .filter(e => e.id !== bday.id) // Don't notify the birthday person about their own birthday
           .map(e => ({
             user_id: e.user_id,
-            title: '🎂 Birthday Today!',
+            title: 'ðŸŽ‚ Birthday Today!',
             message,
             type: 'birthday',
             link: '/employees',
@@ -445,8 +411,8 @@ const notificationService = {
         if (bday.user_id) {
           notifications.push({
             user_id: bday.user_id,
-            title: '🎉 Happy Birthday!',
-            message: `Happy Birthday, ${bday.first_name || 'there'}! 🎉 Wishing you a wonderful day!`,
+            title: 'ðŸŽ‰ Happy Birthday!',
+            message: `Happy Birthday, ${bday.first_name || 'there'}! ðŸŽ‰ Wishing you a wonderful day!`,
             type: 'birthday',
             link: '/notifications',
           });
@@ -473,7 +439,7 @@ const notificationService = {
 
       const notification = {
         user_id: employee.user_id,
-        title: '⏰ Task Due Soon',
+        title: 'â° Task Due Soon',
         message: `Task "${task.title}" is due ${task.due_date ? `on ${new Date(task.due_date).toLocaleDateString()}` : 'soon'}!`,
         type: 'task',
         link: '/tasks',
@@ -505,7 +471,7 @@ const notificationService = {
         .filter(p => p.user_id)
         .map(p => ({
           user_id: p.user_id,
-          title: '📅 Meeting Starting Soon',
+          title: 'ðŸ“… Meeting Starting Soon',
           message: `"${meeting.title}" starts at ${timeString}. Click to join!`,
           type: 'meeting',
           link: '/meetings',
@@ -515,7 +481,7 @@ const notificationService = {
         await supabase.from('notifications').insert(notifications);
         
         // Show native notification to organizer
-        showNativeNotification('📅 Meeting Starting Soon', `"${meeting.title}" starts at ${timeString}`);
+        showNativeNotification('ðŸ“… Meeting Starting Soon', `"${meeting.title}" starts at ${timeString}`);
       }
 
       console.log(`Meeting reminder sent for ${meeting.title} to ${notifications.length} participants`);
@@ -537,7 +503,7 @@ const notificationService = {
 
       const notification = {
         user_id: participant.user_id,
-        title: '📧 Meeting Invitation',
+        title: 'ðŸ“§ Meeting Invitation',
         message: `You've been invited to "${meeting.title}" on ${dateString} at ${timeString}`,
         type: 'meeting',
         link: '/meetings',
@@ -586,7 +552,7 @@ const notificationService = {
         if (isParticipant) {
           const startTime = new Date(meeting.start_time);
           showNativeNotification(
-            '📅 Meeting in 15 minutes',
+            'ðŸ“… Meeting in 15 minutes',
             `"${meeting.title}" starts at ${startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
           );
         }

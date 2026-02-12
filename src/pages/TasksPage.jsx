@@ -1,30 +1,17 @@
-/**
+﻿/**
  * Guardian Desktop ERP - Tasks Page
  * Complete task management with CRUD operations
-<<<<<<< HEAD
  * Now includes: Tasks Tab, Personal Reminders Tab, Upcoming Meetings Banner
-=======
- * Now includes: Personal Reminders (Google Tasks style), Upcoming Meetings view
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, Search, Filter, MoreVertical, Edit2, Trash2, 
   CheckCircle, Clock, AlertCircle, Calendar, Users, ListTodo,
-<<<<<<< HEAD
   Bell, BellRing, Video, ChevronRight, AlarmClock, X
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
 import { tasksAPI, employeesAPI, notificationsAPI, personalRemindersAPI, meetingsAPI } from '../services/api';
-=======
-  Bell, Video, Phone, AlarmClock, Repeat, PhoneCall, Mail,
-  ChevronRight, X
-} from 'lucide-react';
-import { useAuth } from '../store/AuthContext';
-import { tasksAPI, employeesAPI, notificationsAPI, meetingsAPI, personalRemindersAPI } from '../services/api';
-import { format, parseISO, isToday, isTomorrow, isPast, addHours, addMinutes } from 'date-fns';
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
 import toast from 'react-hot-toast';
 import { getPositionLabel, getDepartmentLabel } from '../data/organizationConfig';
 import { format, parseISO, isToday, isTomorrow, isPast, addMinutes } from 'date-fns';
@@ -192,16 +179,8 @@ const UpcomingMeetingCard = ({ meeting, onJoin }) => {
 
 function TasksPage() {
   const { user } = useAuth();
-<<<<<<< HEAD
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('tasks'); // 'tasks' or 'reminders'
-=======
-  
-  // Tab state
-  const [activeTab, setActiveTab] = useState('tasks'); // tasks, reminders
-  
-  // Tasks state
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [reminders, setReminders] = useState([]);
@@ -216,27 +195,7 @@ function TasksPage() {
   const [editingTask, setEditingTask] = useState(null);
   const [editingReminder, setEditingReminder] = useState(null);
   const [taskToDelete, setTaskToDelete] = useState(null);
-<<<<<<< HEAD
   const [reminderToDelete, setReminderToDelete] = useState(null);
-=======
-  
-  // Meetings state
-  const [upcomingMeetings, setUpcomingMeetings] = useState([]);
-  
-  // Personal Reminders state
-  const [reminders, setReminders] = useState([]);
-  const [showReminderModal, setShowReminderModal] = useState(false);
-  const [editingReminder, setEditingReminder] = useState(null);
-  const [reminderForm, setReminderForm] = useState({
-    title: '',
-    description: '',
-    reminder_date: '',
-    reminder_time: '',
-    category: 'task',
-    contact_info: '',
-    priority: 'medium'
-  });
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
 
   const [formData, setFormData] = useState({
     title: '',
@@ -257,23 +216,8 @@ function TasksPage() {
   useEffect(() => {
     fetchTasks();
     fetchEmployees();
-<<<<<<< HEAD
     fetchReminders();
     fetchUpcomingMeetings();
-=======
-    fetchUpcomingMeetings();
-    fetchReminders();
-    
-    // Check for due task notifications
-    checkDueTaskNotifications();
-    
-    // Set up interval to check for reminder notifications
-    const notificationInterval = setInterval(() => {
-      checkReminderNotifications();
-    }, 60000); // Check every minute
-    
-    return () => clearInterval(notificationInterval);
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
   }, []);
 
   const fetchReminders = async () => {
@@ -408,7 +352,7 @@ function TasksPage() {
         const fullName = `${emp.first_name || ''} ${emp.last_name || ''}`.trim() || emp.email || 'Unknown';
         const position = getPositionLabel(emp.role);
         const dept = getDepartmentLabel(emp.department);
-        const subtitle = [position, dept].filter(Boolean).join(' • ');
+        const subtitle = [position, dept].filter(Boolean).join(' â€¢ ');
         return {
           ...emp,
           name: fullName,
@@ -459,7 +403,7 @@ function TasksPage() {
       const employee = employees.find(emp => emp.id === employeeId);
       if (employee?.user_id) {
         await notificationsAPI.create(employee.user_id, {
-          title: type === 'new' ? '📋 New Task Assigned' : '📋 Task Reassigned',
+          title: type === 'new' ? 'ðŸ“‹ New Task Assigned' : 'ðŸ“‹ Task Reassigned',
           message: `You have been assigned to: "${taskTitle}"`,
           type: 'task',
           link: '/tasks'
@@ -734,7 +678,6 @@ function TasksPage() {
     <div className="space-y-6 animate-fade-in">
       {/* Upcoming Meetings Banner */}
       {upcomingMeetings.length > 0 && (
-<<<<<<< HEAD
         <div className="card p-4 bg-gradient-to-r from-purple-500 to-indigo-600 text-white">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -759,26 +702,10 @@ function TasksPage() {
                   {isToday(parseISO(meeting.start_time)) ? 'Today' : 'Tomorrow'} at {format(parseISO(meeting.start_time), 'HH:mm')}
                 </p>
               </div>
-=======
-        <div className="card p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <Video className="w-5 h-5 text-purple-600" />
-              Upcoming Meetings
-            </h3>
-            <a href="/meetings" className="text-sm text-guardian-600 hover:underline flex items-center gap-1">
-              View All <ChevronRight className="w-4 h-4" />
-            </a>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            {upcomingMeetings.slice(0, 3).map(meeting => (
-              <UpcomingMeetingCard key={meeting.id} meeting={meeting} onJoin={handleJoinMeeting} />
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
             ))}
           </div>
         </div>
       )}
-<<<<<<< HEAD
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
@@ -809,9 +736,6 @@ function TasksPage() {
       {/* Tasks Tab Content */}
       {activeTab === 'tasks' && (
         <>
-=======
-      
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="card p-4 flex items-center gap-4">
@@ -1188,7 +1112,6 @@ function TasksPage() {
           </div>
         </div>
       )}
-<<<<<<< HEAD
         </>
       )}
 
@@ -1406,134 +1329,6 @@ function TasksPage() {
             </div>
           )}
         </>
-=======
-
-      {/* Reminder Modal */}
-      {showReminderModal && (
-        <div className="modal-overlay" onClick={closeReminderModal}>
-          <div className="modal-content max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                {editingReminder ? 'Edit Reminder' : 'Create Reminder'}
-              </h2>
-              <button onClick={closeReminderModal} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleReminderSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Title *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={reminderForm.title}
-                  onChange={(e) => setReminderForm({ ...reminderForm, title: e.target.value })}
-                  className="input w-full"
-                  placeholder="e.g., Call John about project"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Notes
-                </label>
-                <textarea
-                  value={reminderForm.description}
-                  onChange={(e) => setReminderForm({ ...reminderForm, description: e.target.value })}
-                  className="input w-full"
-                  rows={2}
-                  placeholder="Additional details..."
-                />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={reminderForm.reminder_date}
-                    onChange={(e) => setReminderForm({ ...reminderForm, reminder_date: e.target.value })}
-                    className="input w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Time *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={reminderForm.reminder_time}
-                    onChange={(e) => setReminderForm({ ...reminderForm, reminder_time: e.target.value })}
-                    className="input w-full"
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Category
-                </label>
-                <div className="flex gap-2 flex-wrap">
-                  {[
-                    { value: 'call', label: 'Call', icon: PhoneCall },
-                    { value: 'email', label: 'Email', icon: Mail },
-                    { value: 'task', label: 'Task', icon: ListTodo },
-                    { value: 'meeting', label: 'Meeting', icon: Video }
-                  ].map(cat => (
-                    <label
-                      key={cat.value}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                        reminderForm.category === cat.value
-                          ? 'border-guardian-600 bg-guardian-50 dark:bg-guardian-900/30 text-guardian-700 dark:text-guardian-400'
-                          : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="category"
-                        value={cat.value}
-                        checked={reminderForm.category === cat.value}
-                        onChange={(e) => setReminderForm({ ...reminderForm, category: e.target.value })}
-                        className="sr-only"
-                      />
-                      <cat.icon className="w-4 h-4" />
-                      <span className="text-sm">{cat.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Contact Info (optional)
-                </label>
-                <input
-                  type="text"
-                  value={reminderForm.contact_info}
-                  onChange={(e) => setReminderForm({ ...reminderForm, contact_info: e.target.value })}
-                  className="input w-full"
-                  placeholder="Phone number or email"
-                />
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={closeReminderModal} className="btn btn-ghost">
-                  Cancel
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  {editingReminder ? 'Update Reminder' : 'Create Reminder'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
->>>>>>> 2d35876e9053a18fcddca5b7ec7d61c54147dfdb
       )}
     </div>
   );
