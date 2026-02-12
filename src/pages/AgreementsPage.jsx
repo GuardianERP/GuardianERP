@@ -98,13 +98,13 @@ function generateEmployeeAgreementHTML(data) {
     : `<span style="display:inline-block; width:${width}; border-bottom:1.5px solid #000;">&nbsp;</span>`;
 
   return `
-  <div style="font-family: 'Georgia', 'Times New Roman', Times, serif; font-size: 12pt; color: #1a1a1a; line-height: 1.7; padding: 30px 40px; max-width: 780px; margin: 0 auto; background: #fff;">
+  <div style="font-family: 'Georgia', 'Times New Roman', Times, serif; font-size: 12pt; color: #1a1a1a; line-height: 1.7; padding: 20px 30px; width: 100%; box-sizing: border-box; background: #fff;">
 
     <!-- Letterhead -->
-    <div style="text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px double #1a365d;">
-      <h1 style="font-size: 24pt; font-weight: bold; margin: 0; letter-spacing: 3px; color: #1a365d; text-transform: uppercase;">${COMPANY.name.toUpperCase()}</h1>
-      <p style="font-size: 9.5pt; margin: 6px 0 3px 0; color: #4a5568;">${COMPANY.address}</p>
-      <p style="font-size: 9pt; margin: 2px 0; color: #4a5568;">Phone: ${COMPANY.phone} | Email: ${COMPANY.email}</p>
+    <div style="text-align: center; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 3px double #1a365d;">
+      <h1 style="font-size: 22pt; font-weight: bold; margin: 0; letter-spacing: 3px; color: #1a365d; text-transform: uppercase;">${COMPANY.name.toUpperCase()}</h1>
+      <p style="font-size: 9pt; margin: 5px 0 2px 0; color: #4a5568;">${COMPANY.address}</p>
+      <p style="font-size: 8.5pt; margin: 2px 0; color: #4a5568;">Phone: ${COMPANY.phone} | Email: ${COMPANY.email}</p>
       <p style="font-size: 9pt; margin: 2px 0; color: #4a5568;">${COMPANY.website}</p>
     </div>
 
@@ -254,13 +254,13 @@ function generateGuarantorAgreementHTML(data) {
     : `<span style="display:inline-block; width:${width}; border-bottom:1.5px solid #000;">&nbsp;</span>`;
 
   return `
-  <div style="font-family: 'Georgia', 'Times New Roman', Times, serif; font-size: 12pt; color: #1a1a1a; line-height: 1.7; padding: 30px 40px; max-width: 780px; margin: 0 auto; background: #fff;">
+  <div style="font-family: 'Georgia', 'Times New Roman', Times, serif; font-size: 12pt; color: #1a1a1a; line-height: 1.7; padding: 20px 30px; width: 100%; box-sizing: border-box; background: #fff;">
     
     <!-- Letterhead -->
-    <div style="text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 3px double #1a365d;">
-      <h1 style="font-size: 24pt; font-weight: bold; margin: 0; letter-spacing: 3px; color: #1a365d; text-transform: uppercase;">${COMPANY.name.toUpperCase()}</h1>
-      <p style="font-size: 9.5pt; margin: 6px 0 3px 0; color: #4a5568;">${COMPANY.address}</p>
-      <p style="font-size: 9pt; margin: 2px 0; color: #4a5568;">Phone: ${COMPANY.phone} | Email: ${COMPANY.email}</p>
+    <div style="text-align: center; margin-bottom: 18px; padding-bottom: 12px; border-bottom: 3px double #1a365d;">
+      <h1 style="font-size: 22pt; font-weight: bold; margin: 0; letter-spacing: 3px; color: #1a365d; text-transform: uppercase;">${COMPANY.name.toUpperCase()}</h1>
+      <p style="font-size: 9pt; margin: 5px 0 2px 0; color: #4a5568;">${COMPANY.address}</p>
+      <p style="font-size: 8.5pt; margin: 2px 0; color: #4a5568;">Phone: ${COMPANY.phone} | Email: ${COMPANY.email}</p>
       <p style="font-size: 9pt; margin: 2px 0; color: #4a5568;">${COMPANY.website}</p>
     </div>
 
@@ -512,6 +512,7 @@ function AgreementsPage() {
         : generateGuarantorAgreementHTML(formData);
 
       const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;';
       container.innerHTML = htmlContent;
       document.body.appendChild(container);
 
@@ -520,10 +521,10 @@ function AgreementsPage() {
         : `Guarantor_Agreement_${(formData.employee_name || 'Draft').replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
 
       await html2pdf().from(container).set({
-        margin: [5, 0, 5, 0],
+        margin: [2, 0, 2, 0],
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        html2canvas: { scale: 2, width: 794, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       }).save();
@@ -550,13 +551,14 @@ function AgreementsPage() {
         : generateGuarantorAgreementHTML(formData);
 
       const container = document.createElement('div');
+      container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;';
       container.innerHTML = htmlContent;
       document.body.appendChild(container);
 
       const pdfBlob = await html2pdf().from(container).set({
-        margin: [5, 0, 5, 0],
+        margin: [2, 0, 2, 0],
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        html2canvas: { scale: 2, width: 794, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
       }).outputPdf('blob');
@@ -946,7 +948,7 @@ function AgreementsPage() {
             </div>
             <div ref={previewRef} className="overflow-auto flex-1" style={{ background: '#e5e7eb', padding: '20px' }}>
               <div
-                style={{ background: '#fff', margin: '0 auto', maxWidth: '780px', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: '4px' }}
+                style={{ background: '#fff', margin: '0 auto', width: '794px', maxWidth: '100%', boxShadow: '0 2px 16px rgba(0,0,0,0.08)', borderRadius: '4px' }}
                 dangerouslySetInnerHTML={{
                   __html: showPreview === 'employee'
                     ? generateEmployeeAgreementHTML(formData)
