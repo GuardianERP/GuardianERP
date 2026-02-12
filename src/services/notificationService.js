@@ -12,6 +12,23 @@ const isElectron = typeof window !== 'undefined' && window.electronAPI;
 // Store notification timers
 const notificationTimers = new Map();
 
+// Standalone function for showing native notifications (used throughout the service)
+function showNativeNotification(title, message, options = {}) {
+  // Try Electron notification first
+  if (isElectron && window.electronAPI?.notifications?.show) {
+    window.electronAPI.notifications.show(title, message, null);
+    return;
+  }
+  // Fallback to Web Notification API
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      new Notification(title, { body: message, icon: '/icon.png', ...options });
+    } catch (e) {
+      console.warn('[NotificationService] Web notification failed:', e);
+    }
+  }
+}
+
 const notificationService = {
   /**
    * Show system tray notification (works in Electron)
