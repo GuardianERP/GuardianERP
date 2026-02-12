@@ -22,7 +22,7 @@ import { useAutoUpdate } from '../hooks/useAutoUpdate';
 // GitHub release info for manual checking (works for portable users too)
 const GITHUB_OWNER = 'GuardianERP';
 const GITHUB_REPO = 'GuardianERP';
-const CURRENT_VERSION = '2.5.2'; // Update this with each release
+const CURRENT_VERSION = '2.5.4'; // Update this with each release
 
 function UpdateNotification() {
   const {
@@ -74,7 +74,7 @@ function UpdateNotification() {
           // Compare versions using proper semver comparison
           if (isNewerVersion(latestVersion, appVersion)) {
             const exeAsset = release.assets.find(a => 
-              a.name.endsWith('.exe') && a.name.includes('Setup')
+              a.name.endsWith('.exe') && !a.name.includes('blockmap')
             );
             setGithubUpdate({
               version: latestVersion,

@@ -5,6 +5,14 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.4] - 2026-02-13
+
+### Fixed
+- **Auto-update now works properly** — switched from portable to NSIS installer build
+- **PDF download in Electron** — replaced window.open() with iframe print (no popup permission needed)
+- Fixed version detection in update notification component
+- Build config now uses electron-builder.config.js properly
+
 ## [2.5.3] - 2026-02-13
 
 ### Added

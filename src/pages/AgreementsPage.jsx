@@ -516,15 +516,14 @@ function AgreementsPage() {
         ? `Employment Agreement - ${formData.employee_name || 'Draft'}`
         : `Guarantor Agreement - ${formData.employee_name || 'Draft'}`;
 
-      // Open a new window with the full agreement HTML and trigger print
-      const printWindow = window.open('', '_blank', 'width=900,height=700');
-      if (!printWindow) {
-        toast.error('Please allow pop-ups to print the agreement.');
-        setGenerating(false);
-        return;
-      }
+      // Use hidden iframe to print (works in both browser and Electron)
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;height:1123px;border:none;';
+      document.body.appendChild(iframe);
 
-      printWindow.document.write(`<!DOCTYPE html>
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      iframeDoc.open();
+      iframeDoc.write(`<!DOCTYPE html>
 <html>
 <head>
   <title>${title}</title>
@@ -538,25 +537,23 @@ function AgreementsPage() {
 </head>
 <body>${htmlContent}</body>
 </html>`);
-      printWindow.document.close();
+      iframeDoc.close();
 
-      // Wait for content to fully load then trigger print
-      printWindow.onload = () => {
-        setTimeout(() => {
-          printWindow.focus();
-          printWindow.print();
-          setGenerating(false);
-        }, 300);
-      };
-
-      // Fallback if onload doesn't fire
+      // Wait for content to render then trigger print via iframe
       setTimeout(() => {
         try {
-          printWindow.focus();
-          printWindow.print();
-        } catch (e) { /* already handled */ }
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+        } catch (e) {
+          console.error('Print error:', e);
+          toast.error('Print failed. Try using the Preview instead.');
+        }
+        // Clean up iframe after printing
+        setTimeout(() => {
+          try { document.body.removeChild(iframe); } catch(e) {}
+        }, 2000);
         setGenerating(false);
-      }, 1500);
+      }, 500);
 
       toast.success('Print dialog opened! Choose "Save as PDF" or print directly.');
     } catch (err) {

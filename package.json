@@ -1,6 +1,6 @@
 {
   "name": "guardian-desktop-erp",
-  "version": "2.5.3",
+  "version": "2.5.4",
   "description": "Guardian Desktop ERP - Employee Management Dashboard",
   "main": "electron/main.js",
   "repository": {
@@ -68,30 +68,7 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.guardian.desktop-erp",
-    "productName": "Guardian Desktop ERP",
-    "directories": {
-      "output": "release-new"
-    },
-    "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "backend/**/*"
-    ],
-    "win": {
-      "target": "portable",
-      "icon": "public/icon.ico",
-      "signAndEditExecutable": false
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "public/icon.icns"
-    },
-    "linux": {
-      "target": "AppImage",
-      "icon": "public/icon.png"
-    },
-    "forceCodeSigning": false
+    "extends": "electron-builder.config.js"
   },
   "overrides": {
     "pdfjs-dist": {
