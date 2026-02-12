@@ -93,6 +93,11 @@
     },
     "forceCodeSigning": false
   },
+  "overrides": {
+    "pdfjs-dist": {
+      "canvas": "npm:empty-npm-package@1.0.0"
+    }
+  },
   "author": "Guardian Dental Billing LLC",
   "license": "MIT",
   "homepage": "https://github.com/GuardianERP/GuardianERP"
