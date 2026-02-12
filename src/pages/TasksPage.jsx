@@ -1,15 +1,19 @@
 /**
  * Guardian Desktop ERP - Tasks Page
  * Complete task management with CRUD operations
+ * Now includes: Personal Reminders (Google Tasks style), Upcoming Meetings view
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Plus, Search, Filter, MoreVertical, Edit2, Trash2, 
-  CheckCircle, Clock, AlertCircle, Calendar, Users, ListTodo
+  CheckCircle, Clock, AlertCircle, Calendar, Users, ListTodo,
+  Bell, Video, Phone, AlarmClock, Repeat, PhoneCall, Mail,
+  ChevronRight, X
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
-import { tasksAPI, employeesAPI, notificationsAPI } from '../services/api';
+import { tasksAPI, employeesAPI, notificationsAPI, meetingsAPI, personalRemindersAPI } from '../services/api';
+import { format, parseISO, isToday, isTomorrow, isPast, addHours, addMinutes } from 'date-fns';
 import toast from 'react-hot-toast';
 import { getPositionLabel, getDepartmentLabel } from '../data/organizationConfig';
 
@@ -48,8 +52,138 @@ const StatusBadge = ({ status }) => {
   );
 };
 
+// Reminder Card Component for Google Tasks style reminders
+const ReminderCard = ({ reminder, onComplete, onEdit, onDelete, onSnooze }) => {
+  const reminderTime = parseISO(reminder.reminder_time);
+  const isPastDue = isPast(reminderTime) && reminder.status === 'pending';
+  
+  const categoryIcons = {
+    call: PhoneCall,
+    email: Mail,
+    task: ListTodo,
+    meeting: Video
+  };
+  const CategoryIcon = categoryIcons[reminder.category] || Bell;
+
+  return (
+    <div className={`card p-3 border-l-4 ${
+      isPastDue ? 'border-l-red-500 bg-red-50 dark:bg-red-900/10' :
+      reminder.status === 'completed' ? 'border-l-green-500 opacity-60' :
+      'border-l-guardian-500'
+    }`}>
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => onComplete(reminder.id)}
+          className={`mt-0.5 w-5 h-5 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-colors ${
+            reminder.status === 'completed' 
+              ? 'bg-green-500 border-green-500 text-white' 
+              : 'border-gray-300 hover:border-guardian-500'
+          }`}
+        >
+          {reminder.status === 'completed' && <CheckCircle className="w-3 h-3" />}
+        </button>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <CategoryIcon className="w-4 h-4 text-gray-400" />
+            <span className={`font-medium ${reminder.status === 'completed' ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+              {reminder.title}
+            </span>
+            {isPastDue && <span className="text-xs text-red-600 font-medium">Overdue</span>}
+          </div>
+          {reminder.description && (
+            <p className="text-sm text-gray-500 mb-2">{reminder.description}</p>
+          )}
+          <div className="flex items-center gap-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1">
+              <AlarmClock className="w-3 h-3" />
+              {format(reminderTime, 'MMM d, h:mm a')}
+            </span>
+            {reminder.contact_info && (
+              <span className="flex items-center gap-1">
+                <Phone className="w-3 h-3" />
+                {reminder.contact_info}
+              </span>
+            )}
+            {reminder.repeat_type && (
+              <span className="flex items-center gap-1">
+                <Repeat className="w-3 h-3" />
+                {reminder.repeat_type}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-1">
+          {reminder.status !== 'completed' && (
+            <button
+              onClick={() => onSnooze(reminder.id)}
+              className="p-1.5 text-gray-400 hover:text-guardian-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+              title="Snooze 1 hour"
+            >
+              <Clock className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            onClick={() => onEdit(reminder)}
+            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          >
+            <Edit2 className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => onDelete(reminder.id)}
+            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Upcoming Meeting Mini Card
+const UpcomingMeetingCard = ({ meeting, onJoin }) => {
+  const startTime = parseISO(meeting.start_time);
+  const isNow = Math.abs(new Date() - startTime) < 15 * 60 * 1000; // within 15 mins
+  
+  return (
+    <div className={`card p-3 border-l-4 ${isNow ? 'border-l-green-500 bg-green-50 dark:bg-green-900/10' : 'border-l-purple-500'}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+            meeting.meeting_type === 'video' ? 'bg-purple-100 dark:bg-purple-900/30' : 'bg-blue-100 dark:bg-blue-900/30'
+          }`}>
+            {meeting.meeting_type === 'video' ? 
+              <Video className="w-5 h-5 text-purple-600 dark:text-purple-400" /> :
+              <Phone className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            }
+          </div>
+          <div className="min-w-0">
+            <h4 className="font-medium text-gray-900 dark:text-white truncate">{meeting.title}</h4>
+            <p className="text-sm text-gray-500">
+              {isToday(startTime) ? 'Today' : isTomorrow(startTime) ? 'Tomorrow' : format(startTime, 'MMM d')} at {format(startTime, 'h:mm a')}
+            </p>
+          </div>
+        </div>
+        {isNow && (
+          <button
+            onClick={() => onJoin(meeting)}
+            className="btn btn-primary text-sm px-3 py-1.5"
+          >
+            Join Now
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 function TasksPage() {
   const { user } = useAuth();
+  
+  // Tab state
+  const [activeTab, setActiveTab] = useState('tasks'); // tasks, reminders
+  
+  // Tasks state
   const [tasks, setTasks] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +194,23 @@ function TasksPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
   const [taskToDelete, setTaskToDelete] = useState(null);
+  
+  // Meetings state
+  const [upcomingMeetings, setUpcomingMeetings] = useState([]);
+  
+  // Personal Reminders state
+  const [reminders, setReminders] = useState([]);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [editingReminder, setEditingReminder] = useState(null);
+  const [reminderForm, setReminderForm] = useState({
+    title: '',
+    description: '',
+    reminder_date: '',
+    reminder_time: '',
+    category: 'task',
+    contact_info: '',
+    priority: 'medium'
+  });
 
   const [formData, setFormData] = useState({
     title: '',
@@ -73,6 +224,18 @@ function TasksPage() {
   useEffect(() => {
     fetchTasks();
     fetchEmployees();
+    fetchUpcomingMeetings();
+    fetchReminders();
+    
+    // Check for due task notifications
+    checkDueTaskNotifications();
+    
+    // Set up interval to check for reminder notifications
+    const notificationInterval = setInterval(() => {
+      checkReminderNotifications();
+    }, 60000); // Check every minute
+    
+    return () => clearInterval(notificationInterval);
   }, []);
 
   const fetchTasks = async () => {
@@ -85,6 +248,96 @@ function TasksPage() {
       setLoading(false);
     }
   };
+  
+  const fetchUpcomingMeetings = async () => {
+    try {
+      const data = await meetingsAPI.getAll({ status: 'scheduled' });
+      // Filter to only show upcoming meetings (next 7 days)
+      const now = new Date();
+      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const upcoming = (data || []).filter(m => {
+        const startTime = new Date(m.start_time);
+        return startTime >= now && startTime <= weekFromNow;
+      }).slice(0, 5);
+      setUpcomingMeetings(upcoming);
+    } catch (error) {
+      console.error('Failed to fetch meetings:', error);
+    }
+  };
+  
+  const fetchReminders = async () => {
+    try {
+      const data = await personalRemindersAPI.getAll();
+      setReminders(data || []);
+    } catch (error) {
+      console.error('Failed to fetch reminders:', error);
+    }
+  };
+  
+  const checkDueTaskNotifications = useCallback(async () => {
+    // Check for tasks due today that haven't been notified
+    const todayKey = `task_due_check_${new Date().toISOString().slice(0, 10)}`;
+    if (sessionStorage.getItem(todayKey)) return;
+    sessionStorage.setItem(todayKey, 'true');
+    
+    const today = new Date().toISOString().slice(0, 10);
+    const dueTasks = tasks.filter(t => 
+      t.due_date?.slice(0, 10) === today && 
+      t.status !== 'completed'
+    );
+    
+    if (dueTasks.length > 0) {
+      toast.custom((t) => (
+        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5`}>
+          <div className="p-4">
+            <div className="flex items-start">
+              <AlertCircle className="w-6 h-6 text-orange-500 flex-shrink-0" />
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  Tasks Due Today
+                </p>
+                <p className="mt-1 text-sm text-gray-500">
+                  You have {dueTasks.length} task{dueTasks.length > 1 ? 's' : ''} due today!
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 5000 });
+    }
+  }, [tasks]);
+  
+  const checkReminderNotifications = useCallback(async () => {
+    const now = new Date();
+    const pendingReminders = reminders.filter(r => {
+      if (r.status !== 'pending') return false;
+      const reminderTime = new Date(r.reminder_time);
+      const diffMins = (reminderTime - now) / (1000 * 60);
+      return diffMins <= 5 && diffMins > -5; // Within 5 mins of reminder time
+    });
+    
+    pendingReminders.forEach(reminder => {
+      toast.custom((t) => (
+        <div className={`${t.visible ? 'animate-enter' : 'animate-leave'} max-w-md w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5`}>
+          <div className="p-4">
+            <div className="flex items-start">
+              <Bell className="w-6 h-6 text-guardian-500 flex-shrink-0" />
+              <div className="ml-3 flex-1">
+                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                  Reminder: {reminder.title}
+                </p>
+                {reminder.contact_info && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    Contact: {reminder.contact_info}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 10000 });
+    });
+  }, [reminders]);
 
   const fetchEmployees = async () => {
     try {
@@ -204,6 +457,115 @@ function TasksPage() {
       status: 'pending'
     });
   };
+  
+  // Reminder handlers
+  const handleReminderSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const reminderDateTime = new Date(`${reminderForm.reminder_date}T${reminderForm.reminder_time}`);
+      
+      const reminderData = {
+        title: reminderForm.title,
+        description: reminderForm.description,
+        reminder_time: reminderDateTime.toISOString(),
+        category: reminderForm.category,
+        contact_info: reminderForm.contact_info,
+        priority: reminderForm.priority,
+      };
+      
+      if (editingReminder) {
+        await personalRemindersAPI.update(editingReminder.id, reminderData);
+        toast.success('Reminder updated');
+      } else {
+        await personalRemindersAPI.create(reminderData);
+        toast.success('Reminder created');
+      }
+      
+      fetchReminders();
+      closeReminderModal();
+    } catch (error) {
+      toast.error(error.message || 'Failed to save reminder');
+    }
+  };
+  
+  const handleCompleteReminder = async (reminderId) => {
+    try {
+      await personalRemindersAPI.complete(reminderId);
+      toast.success('Reminder completed');
+      fetchReminders();
+    } catch (error) {
+      toast.error('Failed to complete reminder');
+    }
+  };
+  
+  const handleSnoozeReminder = async (reminderId) => {
+    try {
+      const snoozeUntil = addHours(new Date(), 1).toISOString();
+      await personalRemindersAPI.snooze(reminderId, snoozeUntil);
+      toast.success('Reminder snoozed for 1 hour');
+      fetchReminders();
+    } catch (error) {
+      toast.error('Failed to snooze reminder');
+    }
+  };
+  
+  const handleDeleteReminder = async (reminderId) => {
+    try {
+      await personalRemindersAPI.delete(reminderId);
+      toast.success('Reminder deleted');
+      fetchReminders();
+    } catch (error) {
+      toast.error('Failed to delete reminder');
+    }
+  };
+  
+  const openEditReminderModal = (reminder) => {
+    setEditingReminder(reminder);
+    const reminderTime = parseISO(reminder.reminder_time);
+    setReminderForm({
+      title: reminder.title,
+      description: reminder.description || '',
+      reminder_date: format(reminderTime, 'yyyy-MM-dd'),
+      reminder_time: format(reminderTime, 'HH:mm'),
+      category: reminder.category || 'task',
+      contact_info: reminder.contact_info || '',
+      priority: reminder.priority || 'medium'
+    });
+    setShowReminderModal(true);
+  };
+  
+  const openNewReminderModal = () => {
+    setEditingReminder(null);
+    const now = new Date();
+    setReminderForm({
+      title: '',
+      description: '',
+      reminder_date: format(now, 'yyyy-MM-dd'),
+      reminder_time: format(addMinutes(now, 30), 'HH:mm'),
+      category: 'task',
+      contact_info: '',
+      priority: 'medium'
+    });
+    setShowReminderModal(true);
+  };
+  
+  const closeReminderModal = () => {
+    setShowReminderModal(false);
+    setEditingReminder(null);
+    setReminderForm({
+      title: '',
+      description: '',
+      reminder_date: '',
+      reminder_time: '',
+      category: 'task',
+      contact_info: '',
+      priority: 'medium'
+    });
+  };
+  
+  const handleJoinMeeting = (meeting) => {
+    window.location.href = '/meetings';
+  };
 
   const filteredTasks = tasks.filter(task => {
     const title = task.title || '';
@@ -214,12 +576,18 @@ function TasksPage() {
     const matchesPriority = filterPriority === 'all' || task.priority === filterPriority;
     return matchesSearch && matchesStatus && matchesPriority;
   });
+  
+  // Filter reminders
+  const pendingReminders = reminders.filter(r => r.status === 'pending');
+  const completedReminders = reminders.filter(r => r.status === 'completed');
 
   const stats = {
     total: tasks.length,
     pending: tasks.filter(t => t.status === 'pending').length,
     inProgress: tasks.filter(t => t.status === 'in_progress').length,
-    completed: tasks.filter(t => t.status === 'completed').length
+    completed: tasks.filter(t => t.status === 'completed').length,
+    reminders: pendingReminders.length,
+    meetings: upcomingMeetings.length
   };
 
   if (loading) {
@@ -232,8 +600,28 @@ function TasksPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Upcoming Meetings Banner */}
+      {upcomingMeetings.length > 0 && (
+        <div className="card p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200 dark:border-purple-800">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <Video className="w-5 h-5 text-purple-600" />
+              Upcoming Meetings
+            </h3>
+            <a href="/meetings" className="text-sm text-guardian-600 hover:underline flex items-center gap-1">
+              View All <ChevronRight className="w-4 h-4" />
+            </a>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {upcomingMeetings.slice(0, 3).map(meeting => (
+              <UpcomingMeetingCard key={meeting.id} meeting={meeting} onJoin={handleJoinMeeting} />
+            ))}
+          </div>
+        </div>
+      )}
+      
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="card p-4 flex items-center gap-4">
           <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
             <ListTodo className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -272,64 +660,93 @@ function TasksPage() {
         </div>
       </div>
 
-      {/* Actions Bar */}
-      <div className="card p-4">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search tasks..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="input pl-10 w-full sm:w-64"
-              />
-            </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="input"
-            >
-              <option value="all">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <select
-              value={filterPriority}
-              onChange={(e) => setFilterPriority(e.target.value)}
-              className="input"
-            >
-              <option value="all">All Priority</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-          </div>
-          <button onClick={() => setShowModal(true)} className="btn btn-primary whitespace-nowrap">
-            <Plus className="w-4 h-4 mr-2" />
-            Add Task
-          </button>
-        </div>
+      {/* Tabs */}
+      <div className="flex items-center border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setActiveTab('tasks')}
+          className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'tasks'
+              ? 'border-guardian-600 text-guardian-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <ListTodo className="w-4 h-4 inline mr-2" />
+          Tasks ({stats.total})
+        </button>
+        <button
+          onClick={() => setActiveTab('reminders')}
+          className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'reminders'
+              ? 'border-guardian-600 text-guardian-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Bell className="w-4 h-4 inline mr-2" />
+          My Reminders ({stats.reminders})
+        </button>
       </div>
 
-      {/* Tasks List */}
-      <div className="grid gap-4">
-        {filteredTasks.map((task) => (
-          <div key={task.id} className="card p-4 hover:shadow-lg transition-shadow">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 mb-2">
-                  <h3 className="font-semibold text-gray-900 dark:text-white truncate">{task.title}</h3>
-                  <PriorityBadge priority={task.priority} />
-                  <StatusBadge status={task.status} />
+      {/* Tasks Tab Content */}
+      {activeTab === 'tasks' && (
+        <>
+          {/* Actions Bar */}
+          <div className="card p-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search tasks..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="input pl-10 w-full sm:w-64"
+                  />
                 </div>
-                {task.description && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
-                    {task.description}
-                  </p>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="in_progress">In Progress</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+                <select
+                  value={filterPriority}
+                  onChange={(e) => setFilterPriority(e.target.value)}
+                  className="input"
+                >
+                  <option value="all">All Priority</option>
+                  <option value="high">High</option>
+                  <option value="medium">Medium</option>
+                  <option value="low">Low</option>
+                </select>
+              </div>
+              <button onClick={() => setShowModal(true)} className="btn btn-primary whitespace-nowrap">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Task
+              </button>
+            </div>
+          </div>
+
+          {/* Tasks List */}
+          <div className="grid gap-4">
+            {filteredTasks.map((task) => (
+              <div key={task.id} className="card p-4 hover:shadow-lg transition-shadow">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3 className="font-semibold text-gray-900 dark:text-white truncate">{task.title}</h3>
+                      <PriorityBadge priority={task.priority} />
+                      <StatusBadge status={task.status} />
+                    </div>
+                    {task.description && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 line-clamp-2">
+                        {task.description}
+                      </p>
                 )}
                 <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                   {task.assigned_to && (() => {
@@ -384,7 +801,76 @@ function TasksPage() {
             <p className="text-gray-500">Create your first task to get started</p>
           </div>
         )}
-      </div>
+          </div>
+        </>
+      )}
+
+      {/* Reminders Tab Content */}
+      {activeTab === 'reminders' && (
+        <>
+          {/* Reminders Actions Bar */}
+          <div className="card p-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">My Reminders</h3>
+                <p className="text-sm text-gray-500">Personal tasks and quick reminders like Google Tasks</p>
+              </div>
+              <button onClick={openNewReminderModal} className="btn btn-primary whitespace-nowrap">
+                <Plus className="w-4 h-4 mr-2" />
+                Add Reminder
+              </button>
+            </div>
+          </div>
+
+          {/* Pending Reminders */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide px-1">
+              Pending ({pendingReminders.length})
+            </h4>
+            {pendingReminders.length > 0 ? (
+              pendingReminders.map(reminder => (
+                <ReminderCard
+                  key={reminder.id}
+                  reminder={reminder}
+                  onComplete={handleCompleteReminder}
+                  onEdit={openEditReminderModal}
+                  onDelete={handleDeleteReminder}
+                  onSnooze={handleSnoozeReminder}
+                />
+              ))
+            ) : (
+              <div className="card p-8 text-center">
+                <Bell className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No pending reminders</h3>
+                <p className="text-gray-500 mb-4">Add reminders for calls, tasks, or anything you need to remember</p>
+                <button onClick={openNewReminderModal} className="btn btn-primary">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Your First Reminder
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Completed Reminders */}
+          {completedReminders.length > 0 && (
+            <div className="space-y-3 mt-6">
+              <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide px-1">
+                Completed ({completedReminders.length})
+              </h4>
+              {completedReminders.slice(0, 5).map(reminder => (
+                <ReminderCard
+                  key={reminder.id}
+                  reminder={reminder}
+                  onComplete={handleCompleteReminder}
+                  onEdit={openEditReminderModal}
+                  onDelete={handleDeleteReminder}
+                  onSnooze={handleSnoozeReminder}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Task Modal */}
       {showModal && (
@@ -507,6 +993,133 @@ function TasksPage() {
                 Delete
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reminder Modal */}
+      {showReminderModal && (
+        <div className="modal-overlay" onClick={closeReminderModal}>
+          <div className="modal-content max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                {editingReminder ? 'Edit Reminder' : 'Create Reminder'}
+              </h2>
+              <button onClick={closeReminderModal} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleReminderSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={reminderForm.title}
+                  onChange={(e) => setReminderForm({ ...reminderForm, title: e.target.value })}
+                  className="input w-full"
+                  placeholder="e.g., Call John about project"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Notes
+                </label>
+                <textarea
+                  value={reminderForm.description}
+                  onChange={(e) => setReminderForm({ ...reminderForm, description: e.target.value })}
+                  className="input w-full"
+                  rows={2}
+                  placeholder="Additional details..."
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Date *
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={reminderForm.reminder_date}
+                    onChange={(e) => setReminderForm({ ...reminderForm, reminder_date: e.target.value })}
+                    className="input w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Time *
+                  </label>
+                  <input
+                    type="time"
+                    required
+                    value={reminderForm.reminder_time}
+                    onChange={(e) => setReminderForm({ ...reminderForm, reminder_time: e.target.value })}
+                    className="input w-full"
+                  />
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Category
+                </label>
+                <div className="flex gap-2 flex-wrap">
+                  {[
+                    { value: 'call', label: 'Call', icon: PhoneCall },
+                    { value: 'email', label: 'Email', icon: Mail },
+                    { value: 'task', label: 'Task', icon: ListTodo },
+                    { value: 'meeting', label: 'Meeting', icon: Video }
+                  ].map(cat => (
+                    <label
+                      key={cat.value}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                        reminderForm.category === cat.value
+                          ? 'border-guardian-600 bg-guardian-50 dark:bg-guardian-900/30 text-guardian-700 dark:text-guardian-400'
+                          : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="category"
+                        value={cat.value}
+                        checked={reminderForm.category === cat.value}
+                        onChange={(e) => setReminderForm({ ...reminderForm, category: e.target.value })}
+                        className="sr-only"
+                      />
+                      <cat.icon className="w-4 h-4" />
+                      <span className="text-sm">{cat.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Contact Info (optional)
+                </label>
+                <input
+                  type="text"
+                  value={reminderForm.contact_info}
+                  onChange={(e) => setReminderForm({ ...reminderForm, contact_info: e.target.value })}
+                  className="input w-full"
+                  placeholder="Phone number or email"
+                />
+              </div>
+              
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={closeReminderModal} className="btn btn-ghost">
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  {editingReminder ? 'Update Reminder' : 'Create Reminder'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

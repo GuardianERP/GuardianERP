@@ -15,6 +15,7 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
 const AttendancePage = lazy(() => import('./pages/AttendancePage'));
 const TasksPage = lazy(() => import('./pages/TasksPage'));
+const MeetingsPage = lazy(() => import('./pages/MeetingsPage'));
 const LeavesPage = lazy(() => import('./pages/LeavesPage'));
 const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
 const RevenuePage = lazy(() => import('./pages/RevenuePage'));
@@ -158,6 +159,7 @@ function AppWithMonitoring() {
           <Route path="my-profile" element={<MyProfilePage />} />
           <Route path="attendance" element={<AttendancePage />} />
           <Route path="tasks" element={<TasksPage />} />
+          <Route path="meetings" element={<MeetingsPage />} />
           <Route path="leaves" element={<LeavesPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="notifications" element={<NotificationsPage />} />

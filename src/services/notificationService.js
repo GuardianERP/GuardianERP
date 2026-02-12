@@ -1,9 +1,38 @@
 /**
  * Guardian Desktop ERP - Notification Service
  * Handles auto-notifications: welcome (new employee), birthday, chat
+ * Now with native desktop notifications!
  */
 
 import { supabase } from './supabaseClient';
+
+/**
+ * Show a native desktop notification (Windows toast/Mac notification)
+ * Works even when app is minimized or user is in another window
+ */
+const showNativeNotification = async (title, body) => {
+  try {
+    // Try Electron native notification first (for desktop app)
+    if (window.electronAPI?.notifications?.show) {
+      await window.electronAPI.notifications.show(title, body);
+      return;
+    }
+    
+    // Fallback to browser Notification API (for web/PWA)
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/icon.png' });
+      } else if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          new Notification(title, { body, icon: '/icon.png' });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to show native notification:', error);
+  }
+};
 
 const notificationService = {
   /**
@@ -166,9 +195,143 @@ const notificationService = {
   },
 
   /**
+   * Send task due notification to assigned employee
+   * Called when a task is approaching its due date
+   */
+  sendTaskDueNotification: async (task, employee) => {
+    try {
+      if (!employee?.user_id) return;
+
+      const notification = {
+        user_id: employee.user_id,
+        title: '⏰ Task Due Soon',
+        message: `Task "${task.title}" is due ${task.due_date ? `on ${new Date(task.due_date).toLocaleDateString()}` : 'soon'}!`,
+        type: 'task',
+        link: '/tasks',
+      };
+
+      await supabase.from('notifications').insert(notification);
+      
+      // Also show native notification immediately
+      showNativeNotification(notification.title, notification.message);
+
+      console.log('Task due notification sent for:', task.title);
+    } catch (error) {
+      console.error('Failed to send task due notification:', error);
+    }
+  },
+
+  /**
+   * Send meeting reminder notification to all participants
+   * Called before a meeting starts (e.g., 15 mins before)
+   */
+  sendMeetingReminderNotification: async (meeting, participants) => {
+    try {
+      if (!participants || participants.length === 0) return;
+
+      const startTime = new Date(meeting.start_time);
+      const timeString = startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+      const notifications = participants
+        .filter(p => p.user_id)
+        .map(p => ({
+          user_id: p.user_id,
+          title: '📅 Meeting Starting Soon',
+          message: `"${meeting.title}" starts at ${timeString}. Click to join!`,
+          type: 'meeting',
+          link: '/meetings',
+        }));
+
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications);
+        
+        // Show native notification to organizer
+        showNativeNotification('📅 Meeting Starting Soon', `"${meeting.title}" starts at ${timeString}`);
+      }
+
+      console.log(`Meeting reminder sent for ${meeting.title} to ${notifications.length} participants`);
+    } catch (error) {
+      console.error('Failed to send meeting reminder:', error);
+    }
+  },
+
+  /**
+   * Send meeting invitation notification to a participant
+   */
+  sendMeetingInviteNotification: async (meeting, participant) => {
+    try {
+      if (!participant?.user_id) return;
+
+      const startTime = new Date(meeting.start_time);
+      const dateString = startTime.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const timeString = startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+      const notification = {
+        user_id: participant.user_id,
+        title: '📧 Meeting Invitation',
+        message: `You've been invited to "${meeting.title}" on ${dateString} at ${timeString}`,
+        type: 'meeting',
+        link: '/meetings',
+      };
+
+      await supabase.from('notifications').insert(notification);
+      showNativeNotification(notification.title, notification.message);
+
+      console.log('Meeting invite notification sent to:', participant.user_id);
+    } catch (error) {
+      console.error('Failed to send meeting invite notification:', error);
+    }
+  },
+
+  /**
+   * Check for upcoming meetings and send reminders
+   * Should be called periodically (e.g., every 5 minutes)
+   */
+  checkUpcomingMeetingReminders: async (userId) => {
+    try {
+      const now = new Date();
+      const fifteenMinsFromNow = new Date(now.getTime() + 15 * 60 * 1000);
+      const tenMinsFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+
+      // Check if we already sent a reminder in this window
+      const reminderKey = `meeting_reminder_check_${now.toISOString().slice(0, 16)}`; // Per minute
+      if (sessionStorage.getItem(reminderKey)) return;
+      sessionStorage.setItem(reminderKey, 'true');
+
+      // Get meetings starting in 10-15 minutes
+      const { data: meetings } = await supabase
+        .from('meetings')
+        .select('*')
+        .eq('status', 'scheduled')
+        .gte('start_time', tenMinsFromNow.toISOString())
+        .lte('start_time', fifteenMinsFromNow.toISOString());
+
+      if (!meetings || meetings.length === 0) return;
+
+      for (const meeting of meetings) {
+        // Check if user is a participant or organizer
+        const participants = meeting.participants || [];
+        const isParticipant = meeting.organizer_id === userId || 
+          participants.some(p => p.user_id === userId);
+
+        if (isParticipant) {
+          const startTime = new Date(meeting.start_time);
+          showNativeNotification(
+            '📅 Meeting in 15 minutes',
+            `"${meeting.title}" starts at ${startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check upcoming meeting reminders:', error);
+    }
+  },
+
+  /**
    * Subscribe to real-time notifications for a user.
    * Returns a channel that can be unsubscribed.
    * onNotification callback receives the notification object.
+   * NOW SHOWS NATIVE DESKTOP POPUPS!
    */
   subscribeToNotifications: (userId, onNotification) => {
     return supabase
@@ -179,10 +342,21 @@ const notificationService = {
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       }, (payload) => {
-        if (onNotification) onNotification(payload.new);
+        const notification = payload.new;
+        
+        // Show native desktop notification popup
+        if (notification?.title && notification?.message) {
+          showNativeNotification(notification.title, notification.message);
+        }
+        
+        // Also call the callback for in-app handling
+        if (onNotification) onNotification(notification);
       })
       .subscribe();
   },
+
+  // Expose showNativeNotification for manual use
+  showNativeNotification,
 
   unsubscribe: (channel) => {
     if (channel) supabase.removeChannel(channel);

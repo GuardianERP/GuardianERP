@@ -33,6 +33,7 @@ import {
   MonitorPlay,
   X,
   UserPlus,
+  Video,
 } from 'lucide-react';
 
 // Menu items visible to all employees
@@ -41,6 +42,7 @@ const employeeMenuItems = [
   { path: '/my-profile', icon: UserCircle, label: 'My Profile' },
   { path: '/attendance', icon: Clock, label: 'Attendance' },
   { path: '/tasks', icon: CheckSquare, label: 'Tasks' },
+  { path: '/meetings', icon: Video, label: 'Meetings' },
   { path: '/leaves', icon: Calendar, label: 'Leaves' },
   { path: '/ar-followup', icon: FileText, label: 'AR Follow Up' },
   { path: '/vob-bob', icon: ClipboardList, label: 'VOB / BOB' },

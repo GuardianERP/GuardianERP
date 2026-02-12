@@ -1,9 +1,38 @@
 /**
  * Guardian Desktop ERP - Notification Service
  * Handles auto-notifications: welcome (new employee), birthday, chat
+ * Now with native desktop notifications!
  */
 
 import { supabase } from './supabaseClient';
+
+/**
+ * Show a native notification
+ * Works even when app is minimized or user is in another window
+ */
+const showNativeNotification = async (title, body) => {
+  try {
+    // Try Electron native notification first (for desktop app)
+    if (window.electronAPI?.notifications?.show) {
+      await window.electronAPI.notifications.show(title, body);
+      return;
+    }
+    
+    // Fallback to browser Notification API (for web/PWA)
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        new Notification(title, { body, icon: '/icon.png' });
+      } else if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+          new Notification(title, { body, icon: '/icon.png' });
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Failed to show native notification:', error);
+  }
+};
 
 const notificationService = {
   /**
@@ -169,6 +198,7 @@ const notificationService = {
    * Subscribe to real-time notifications for a user.
    * Returns a channel that can be unsubscribed.
    * onNotification callback receives the notification object.
+   * NOW SHOWS NATIVE DESKTOP POPUPS!
    */
   subscribeToNotifications: (userId, onNotification) => {
     return supabase
@@ -179,10 +209,21 @@ const notificationService = {
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       }, (payload) => {
-        if (onNotification) onNotification(payload.new);
+        const notification = payload.new;
+        
+        // Show native notification popup
+        if (notification?.title && notification?.message) {
+          showNativeNotification(notification.title, notification.message);
+        }
+        
+        // Also call the callback for in-app handling
+        if (onNotification) onNotification(notification);
       })
       .subscribe();
   },
+
+  // Expose showNativeNotification for manual use
+  showNativeNotification,
 
   unsubscribe: (channel) => {
     if (channel) supabase.removeChannel(channel);
