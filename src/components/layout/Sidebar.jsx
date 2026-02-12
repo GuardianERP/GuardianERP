@@ -68,6 +68,7 @@ const billingMenuItems = [
 const hrMenuItems = [
   { path: '/attendance', icon: Clock, label: 'Attendance', color: 'text-orange-400' },
   { path: '/time-tracking', icon: Timer, label: 'Time Tracking', color: 'text-yellow-400' },
+  { path: '/agreements', icon: FileText, label: 'Agreements', color: 'text-orange-400' },
 ];
 
 // Accounting group - Financial management (Admin only)

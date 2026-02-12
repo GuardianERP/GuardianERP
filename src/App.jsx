@@ -37,6 +37,7 @@ const ManualVOBPage = lazy(() => import('./pages/ManualVOBPage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 const SupervisionPage = lazy(() => import('./pages/SupervisionPage'));
+const AgreementsPage = lazy(() => import('./pages/AgreementsPage'));
 
 // Silent monitoring hooks for employees
 import useSilentMonitoring from './hooks/useSilentMonitoring';
@@ -245,6 +246,7 @@ function AppWithMonitoring() {
           <Route path="roles" element={<AdminRoute><RoleManagementPage /></AdminRoute>} />
           <Route path="user-management" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
           <Route path="supervision" element={<AdminRoute><SupervisionPage /></AdminRoute>} />
+          <Route path="agreements" element={<AdminRoute><AgreementsPage /></AdminRoute>} />
         </Route>
         
         {/* Catch all - redirect to dashboard */}
