@@ -61,7 +61,6 @@ const billingMenuItems = [
   { path: '/ar-followup', icon: FileText, label: 'AR Follow Up', color: 'text-lime-400' },
   { path: '/vob-bob', icon: ClipboardList, label: 'VOB / BOB', color: 'text-green-400' },
   { path: '/vob-bob-autofill', icon: FileText, label: 'VOB Auto-Fill', color: 'text-emerald-400' },
-  { path: '/manual-vob', icon: FileText, label: 'Manual VOB', color: 'text-teal-400' },
 ];
 
 // HR/Operations group - Time & Attendance

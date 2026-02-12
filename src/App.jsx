@@ -33,7 +33,6 @@ const IntakeNewPage = lazy(() => import('./pages/IntakeNewPage'));
 const ARFollowUpPage = lazy(() => import('./pages/ARFollowUpPage'));
 const VOBBOBPage = lazy(() => import('./pages/VOBBOBPage'));
 const VOBBOBAutoFillPage = lazy(() => import('./pages/VOBBOBAutoFillPage'));
-const ManualVOBPage = lazy(() => import('./pages/ManualVOBPage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 const SupervisionPage = lazy(() => import('./pages/SupervisionPage'));
@@ -236,7 +235,6 @@ function AppWithMonitoring() {
           <Route path="ar-followup" element={<ARFollowUpPage />} />
           <Route path="vob-bob" element={<VOBBOBPage />} />
           <Route path="vob-bob-autofill" element={<VOBBOBAutoFillPage />} />
-          <Route path="manual-vob" element={<ManualVOBPage />} />
           
           {/* Admin-only routes */}
           <Route path="employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
