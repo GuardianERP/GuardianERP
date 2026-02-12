@@ -45,6 +45,19 @@ function UpdateNotification() {
   const [githubUpdate, setGithubUpdate] = useState(null);
   const [githubChecking, setGithubChecking] = useState(false);
   
+  // Proper semver comparison: returns true if a > b
+  const isNewerVersion = (a, b) => {
+    const partsA = a.split('.').map(Number);
+    const partsB = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+      const numA = partsA[i] || 0;
+      const numB = partsB[i] || 0;
+      if (numA > numB) return true;
+      if (numA < numB) return false;
+    }
+    return false;
+  };
+
   // Check GitHub for updates on mount (fallback for portable users)
   useEffect(() => {
     const checkGitHubReleases = async () => {
@@ -56,10 +69,10 @@ function UpdateNotification() {
         if (response.ok) {
           const release = await response.json();
           const latestVersion = release.tag_name.replace('v', '');
-          const appVersion = currentVersion || CURRENT_VERSION;
+          const appVersion = currentVersion && currentVersion !== '' ? currentVersion : CURRENT_VERSION;
           
-          // Compare versions (simple string comparison works for semver)
-          if (latestVersion > appVersion) {
+          // Compare versions using proper semver comparison
+          if (isNewerVersion(latestVersion, appVersion)) {
             const exeAsset = release.assets.find(a => 
               a.name.endsWith('.exe') && a.name.includes('Setup')
             );
@@ -80,7 +93,7 @@ function UpdateNotification() {
     };
     
     // Check after 3 seconds to not block app load
-    const timer = setTimeout(checkGitHubReleases, 3000);
+    const timer = setTimeout(checkGitHubReleases, 5000);
     return () => clearTimeout(timer);
   }, [currentVersion]);
   

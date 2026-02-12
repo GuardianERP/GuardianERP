@@ -67,14 +67,6 @@ pnpm-lock.yaml
 *.msi
 *.nsis
 
-# Mobile APK subfolder specific
-Mobile APK/node_modules/
-Mobile APK/dist/
-Mobile APK/.env
-Mobile APK/android/.gradle/
-Mobile APK/android/app/build/
-Mobile APK/android/build/
-
 # Electron builder files
 *.blockmap
 builder-debug.yml

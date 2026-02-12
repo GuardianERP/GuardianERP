@@ -5,6 +5,31 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.3] - 2026-02-13
+
+### Added
+- **Employee Agreements Page** 📋
+  - 14-article Employment Agreement (dental billing specific, Pakistan standard)
+  - Guarantor Agreement with bilingual format
+  - Auto-fill from employee data on selection
+  - Preview modal and native browser PDF download
+  - Save & attach agreements to employee profile in Supabase Storage
+  - Dual office addresses (USA & Pakistan)
+  - HIPAA, IP Rights, Non-Compete articles included
+- **Employee Agreements database migration** with RLS policies
+
+### Fixed
+- PDF generation reliability (switched to native browser print)
+- Employee agreement save error (RLS policy fix)
+
+### Removed
+- **Removed duplicate Mobile APK folder** (137 stale files — complete copy of main project)
+- Cleaned up dist/ build artifacts
+
+### Improved
+- Repository reduced from 252 to 115 tracked files
+- Cleaner project structure with no duplicated source code
+
 ## [2.4.1] - 2026-02-12
 
 ### Added
