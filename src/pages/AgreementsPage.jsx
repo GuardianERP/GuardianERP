@@ -511,33 +511,37 @@ function AgreementsPage() {
         ? generateEmployeeAgreementHTML(formData)
         : generateGuarantorAgreementHTML(formData);
 
-      // Create container - must be visible for html2canvas
-      const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;left:0;top:0;width:794px;background:#fff;';
-      container.innerHTML = htmlContent;
-      document.body.appendChild(container);
-
-      // Wait for DOM to render
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
       const fileName = type === 'employee'
         ? `Employment_Agreement_${(formData.employee_name || 'Draft').replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`
         : `Guarantor_Agreement_${(formData.employee_name || 'Draft').replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.pdf`;
 
-      await html2pdf().from(container).set({
-        margin: [2, 0, 2, 0],
+      // Create wrapper with explicit dimensions
+      const wrapper = document.createElement('div');
+      wrapper.id = 'pdf-temp-container';
+      wrapper.style.cssText = 'width:210mm;min-height:297mm;padding:0;margin:0;background:#fff;';
+      wrapper.innerHTML = htmlContent;
+      document.body.appendChild(wrapper);
+
+      // Small delay for rendering
+      await new Promise(r => setTimeout(r, 100));
+
+      const opt = {
+        margin: 0,
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      }).save();
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
 
-      document.body.removeChild(container);
+      await html2pdf().set(opt).from(wrapper).save();
+      document.body.removeChild(wrapper);
       toast.success(`${type === 'employee' ? 'Employment' : 'Guarantor'} Agreement PDF downloaded!`);
     } catch (err) {
       console.error('PDF generation error:', err);
-      toast.error('Failed to generate PDF. Please try again.');
+      toast.error('Failed to generate PDF: ' + err.message);
+      // Cleanup if error
+      const temp = document.getElementById('pdf-temp-container');
+      if (temp) temp.remove();
     }
     setGenerating(false);
   };
@@ -554,24 +558,25 @@ function AgreementsPage() {
         ? generateEmployeeAgreementHTML(formData)
         : generateGuarantorAgreementHTML(formData);
 
-      // Create container - must be visible for html2canvas
-      const container = document.createElement('div');
-      container.style.cssText = 'position:absolute;left:0;top:0;width:794px;background:#fff;';
-      container.innerHTML = htmlContent;
-      document.body.appendChild(container);
+      // Create wrapper with explicit dimensions
+      const wrapper = document.createElement('div');
+      wrapper.id = 'pdf-temp-container-save';
+      wrapper.style.cssText = 'width:210mm;min-height:297mm;padding:0;margin:0;background:#fff;';
+      wrapper.innerHTML = htmlContent;
+      document.body.appendChild(wrapper);
 
-      // Wait for DOM to render
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      // Small delay for rendering
+      await new Promise(r => setTimeout(r, 100));
 
-      const pdfBlob = await html2pdf().from(container).set({
-        margin: [2, 0, 2, 0],
+      const opt = {
+        margin: 0,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, logging: false, windowWidth: 794 },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
-      }).outputPdf('blob');
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
 
-      document.body.removeChild(container);
+      const pdfBlob = await html2pdf().set(opt).from(wrapper).outputPdf('blob');
+      document.body.removeChild(wrapper);
 
       const fileName = `agreements/${selectedEmployee.id}/${type}-agreement-${Date.now()}.pdf`;
       const { error: uploadError } = await supabase.storage
