@@ -176,7 +176,12 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
   const callChannelRef = useRef(null);
+  const handleSignalRef = useRef(null);
+  const userRef = useRef(null);
   const { user } = useAuth();
+  
+  // Keep user ref current
+  useEffect(() => { userRef.current = user; }, [user]);
 
   // ICE servers for NAT traversal
   const ICE_SERVERS = {
@@ -189,10 +194,16 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
     ]
   };
 
+  // Helper: get display name for current user
+  const getMyName = () => {
+    const u = userRef.current;
+    return u ? `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Me' : 'Me';
+  };
+
   // Create a peer connection for a remote user
-  const createPeerConnection = useCallback((remoteUserId, remoteName) => {
+  const createPeerConnection = (remoteUserId, remoteName) => {
     if (peerConnections.current[remoteUserId]) {
-      console.log('[WebRTC] Peer connection already exists for', remoteUserId);
+      console.log('[WebRTC] Reusing peer connection for', remoteUserId);
       return peerConnections.current[remoteUserId];
     }
 
@@ -204,11 +215,13 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
       localStreamRef.current.getTracks().forEach(track => {
         pc.addTrack(track, localStreamRef.current);
       });
+    } else {
+      console.warn('[WebRTC] No local stream when creating PC for', remoteUserId);
     }
 
     // Handle incoming remote tracks
     pc.ontrack = (event) => {
-      console.log('[WebRTC] Received remote track from', remoteUserId, event.track.kind);
+      console.log('[WebRTC] Got remote track from', remoteUserId, event.track.kind);
       const [stream] = event.streams;
       if (stream) {
         setRemoteStreams(prev => ({ ...prev, [remoteUserId]: stream }));
@@ -216,7 +229,7 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
       }
     };
 
-    // Handle ICE candidates
+    // Handle ICE candidates — send to remote peer
     pc.onicecandidate = (event) => {
       if (event.candidate && callChannelRef.current) {
         callChannelRef.current.send({
@@ -225,56 +238,67 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
           payload: {
             type: 'ice-candidate',
             candidate: event.candidate.toJSON(),
-            from: user.id,
+            from: userRef.current?.id,
             to: remoteUserId,
           }
         });
       }
     };
 
-    // Connection state monitoring
+    // Monitor connection state
     pc.onconnectionstatechange = () => {
-      console.log('[WebRTC] Connection state with', remoteUserId, ':', pc.connectionState);
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
-        setRemoteStreams(prev => {
-          const updated = { ...prev };
-          delete updated[remoteUserId];
-          return updated;
-        });
-        setConnectedPeers(prev => {
-          const updated = { ...prev };
-          delete updated[remoteUserId];
-          return updated;
-        });
-        if (peerConnections.current[remoteUserId]) {
-          peerConnections.current[remoteUserId].close();
-          delete peerConnections.current[remoteUserId];
-        }
+      console.log('[WebRTC] Conn state', remoteUserId, ':', pc.connectionState);
+      if (pc.connectionState === 'failed') {
+        // Attempt ICE restart on failure
+        console.log('[WebRTC] Connection failed, attempting restart for', remoteUserId);
+        pc.restartIce();
+      }
+      if (pc.connectionState === 'disconnected' || pc.connectionState === 'closed') {
+        cleanupPeer(remoteUserId);
       }
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log('[WebRTC] ICE state with', remoteUserId, ':', pc.iceConnectionState);
+      console.log('[WebRTC] ICE state', remoteUserId, ':', pc.iceConnectionState);
     };
 
     peerConnections.current[remoteUserId] = pc;
     return pc;
-  }, [user?.id]);
+  };
 
-  // Handle signaling messages
-  const handleSignal = useCallback(async (payload) => {
+  // Clean up a single peer
+  const cleanupPeer = (peerId) => {
+    if (peerConnections.current[peerId]) {
+      peerConnections.current[peerId].close();
+      delete peerConnections.current[peerId];
+    }
+    setRemoteStreams(prev => {
+      const next = { ...prev };
+      delete next[peerId];
+      return next;
+    });
+    setConnectedPeers(prev => {
+      const next = { ...prev };
+      delete next[peerId];
+      return next;
+    });
+  };
+
+  // Signal handler — always reads latest state via refs
+  handleSignalRef.current = async (payload) => {
     const { type, from, to, userName } = payload;
-    
-    // Ignore messages from ourselves
-    if (from === user?.id) return;
-    // Ignore messages targeted at other users
-    if (to && to !== user?.id) return;
+    const myId = userRef.current?.id;
 
-    console.log('[WebRTC] Received signal:', type, 'from', from);
+    // Ignore our own messages and messages for other users
+    if (from === myId) return;
+    if (to && to !== myId) return;
+
+    console.log('[WebRTC] Signal received:', type, 'from', from, userName || '');
 
     switch (type) {
       case 'join': {
-        // A new user joined - create offer for them
+        // Someone joined — send them an offer
+        setConnectedPeers(prev => ({ ...prev, [from]: userName || 'Participant' }));
         const pc = createPeerConnection(from, userName);
         try {
           const offer = await pc.createOffer();
@@ -285,11 +309,12 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
             payload: {
               type: 'offer',
               sdp: pc.localDescription.toJSON(),
-              from: user.id,
+              from: myId,
               to: from,
-              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+              userName: getMyName(),
             }
           });
+          console.log('[WebRTC] Sent offer to', from);
         } catch (err) {
           console.error('[WebRTC] Error creating offer:', err);
         }
@@ -297,7 +322,8 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
       }
 
       case 'offer': {
-        // Received an offer - create answer
+        // Got an offer — reply with answer
+        setConnectedPeers(prev => ({ ...prev, [from]: userName || 'Participant' }));
         const pc = createPeerConnection(from, userName);
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
@@ -309,11 +335,12 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
             payload: {
               type: 'answer',
               sdp: pc.localDescription.toJSON(),
-              from: user.id,
+              from: myId,
               to: from,
-              userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
+              userName: getMyName(),
             }
           });
+          console.log('[WebRTC] Sent answer to', from);
         } catch (err) {
           console.error('[WebRTC] Error creating answer:', err);
         }
@@ -321,142 +348,170 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
       }
 
       case 'answer': {
-        // Received an answer to our offer
+        // Got answer to our offer
         const pc = peerConnections.current[from];
-        if (pc && pc.signalingState !== 'stable') {
+        if (pc) {
           try {
-            await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            if (pc.signalingState === 'have-local-offer') {
+              await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+              console.log('[WebRTC] Set remote answer from', from);
+            }
           } catch (err) {
-            console.error('[WebRTC] Error setting remote description:', err);
+            console.error('[WebRTC] Error setting answer:', err);
           }
         }
         break;
       }
 
       case 'ice-candidate': {
-        // Received ICE candidate
         const pc = peerConnections.current[from];
         if (pc) {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
           } catch (err) {
-            console.error('[WebRTC] Error adding ICE candidate:', err);
+            // ICE candidate errors are often non-fatal  
+            console.warn('[WebRTC] ICE candidate error (non-fatal):', err.message);
           }
         }
         break;
       }
 
       case 'leave': {
-        // User left - clean up their connection
-        if (peerConnections.current[from]) {
-          peerConnections.current[from].close();
-          delete peerConnections.current[from];
-        }
-        setRemoteStreams(prev => {
-          const updated = { ...prev };
-          delete updated[from];
-          return updated;
-        });
-        setConnectedPeers(prev => {
-          const updated = { ...prev };
-          delete updated[from];
-          return updated;
-        });
+        console.log('[WebRTC] Peer left:', from);
+        cleanupPeer(from);
+        toast(`${userName || 'A participant'} left the meeting`, { icon: '👋' });
         break;
       }
 
       default:
-        console.log('[WebRTC] Unknown signal type:', type);
+        break;
     }
-  }, [user?.id, user?.firstName, user?.lastName, createPeerConnection]);
+  };
 
-  // Initialize local media and signaling
+  // ===== Main effect: runs ONCE per meeting =====
   useEffect(() => {
     let mounted = true;
+    const myId = user?.id;
+    if (!myId) return;
 
-    const initMedia = async () => {
+    const initCall = async () => {
       try {
+        // 1. Get local media
         const stream = await navigator.mediaDevices.getUserMedia({
           video: meeting.meeting_type === 'video',
-          audio: true
+          audio: true,
         });
-        if (!mounted) {
-          stream.getTracks().forEach(t => t.stop());
-          return;
-        }
-        
+        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
+
         localStreamRef.current = stream;
         setLocalStream(stream);
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
-        }
+        if (localVideoRef.current) localVideoRef.current.srcObject = stream;
         setCallStatus('connected');
-        
-        // Initialize signaling channel via Supabase Broadcast
-        const channelName = `meeting:${meeting.id}`;
-        const channel = supabase.channel(channelName, {
+
+        // 2. Set up Supabase Broadcast channel for signaling
+        const channel = supabase.channel(`meeting-call:${meeting.id}`, {
           config: { broadcast: { self: false } }
         });
-        
+
+        // Use ref so the listener always calls latest handler
         channel.on('broadcast', { event: 'signal' }, ({ payload }) => {
-          handleSignal(payload);
+          handleSignalRef.current?.(payload);
         });
-        
-        await channel.subscribe();
-        callChannelRef.current = channel;
-        
-        // Announce joining to trigger offers from existing participants
-        // Small delay to ensure channel is fully ready
-        setTimeout(() => {
-          if (mounted && callChannelRef.current) {
-            callChannelRef.current.send({
-              type: 'broadcast',
-              event: 'signal',
-              payload: {
-                type: 'join',
-                from: user.id,
-                userName: `${user.firstName || ''} ${user.lastName || ''}`.trim(),
-              }
+
+        // Use presence to track who's in the call
+        channel.on('presence', { event: 'sync' }, () => {
+          const state = channel.presenceState();
+          console.log('[Presence] Current participants:', Object.keys(state));
+        });
+
+        channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+          console.log('[Presence] Joined:', key, newPresences);
+        });
+
+        channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+          console.log('[Presence] Left:', key);
+          // Clean up peer connection for the user who left
+          leftPresences.forEach(p => {
+            if (p.user_id && p.user_id !== myId) {
+              cleanupPeer(p.user_id);
+            }
+          });
+        });
+
+        await channel.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            console.log('[Channel] Subscribed to meeting channel');
+            callChannelRef.current = channel;
+
+            // Track presence
+            await channel.track({
+              user_id: myId,
+              user_name: getMyName(),
+              joined_at: new Date().toISOString(),
             });
+
+            // Announce join after brief delay for channel readiness
+            setTimeout(() => {
+              if (!mounted) return;
+              channel.send({
+                type: 'broadcast',
+                event: 'signal',
+                payload: {
+                  type: 'join',
+                  from: myId,
+                  userName: getMyName(),
+                }
+              });
+              console.log('[WebRTC] Broadcasted join');
+            }, 800);
           }
-        }, 500);
-        
+        });
+
       } catch (error) {
-        console.error('Failed to access media devices:', error);
+        console.error('[Call] Failed to init:', error);
         if (mounted) {
-          toast.error('Could not access camera/microphone');
+          toast.error('Could not access camera/microphone. Check permissions.');
           setCallStatus('error');
         }
       }
     };
-    
-    initMedia();
-    
+
+    initCall();
+
     return () => {
       mounted = false;
-      // Cleanup
+      // Stop local media
       if (localStreamRef.current) {
-        localStreamRef.current.getTracks().forEach(track => track.stop());
+        localStreamRef.current.getTracks().forEach(t => t.stop());
+        localStreamRef.current = null;
       }
       if (screenStreamRef.current) {
-        screenStreamRef.current.getTracks().forEach(track => track.stop());
+        screenStreamRef.current.getTracks().forEach(t => t.stop());
+        screenStreamRef.current = null;
       }
-      Object.values(peerConnections.current).forEach(pc => pc.close());
+      // Close all peer connections
+      Object.keys(peerConnections.current).forEach(id => {
+        peerConnections.current[id]?.close();
+      });
       peerConnections.current = {};
+      // Leave channel
       if (callChannelRef.current) {
         callChannelRef.current.send({
           type: 'broadcast',
           event: 'signal',
-          payload: { type: 'leave', from: user.id }
+          payload: { type: 'leave', from: myId, userName: getMyName() }
         });
-        setTimeout(() => {
-          callChannelRef.current?.unsubscribe();
-        }, 300);
+        callChannelRef.current.untrack();
+        setTimeout(() => callChannelRef.current?.unsubscribe(), 500);
+        callChannelRef.current = null;
       }
+      setRemoteStreams({});
+      setConnectedPeers({});
     };
-  }, [meeting.id, meeting.meeting_type, user?.id, handleSignal]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meeting.id, user?.id]);
 
-  // Attach remote streams to video elements
+  // Attach remote streams to video elements when they change
   useEffect(() => {
     Object.entries(remoteStreams).forEach(([peerId, stream]) => {
       const el = remoteVideoRefs.current[peerId];
@@ -583,7 +638,15 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
       <div className="flex items-center justify-between px-6 py-4 bg-gray-800">
         <div>
           <h2 className="text-xl font-semibold text-white">{meeting.title}</h2>
-          <p className="text-sm text-gray-400">{participants.length} participant{participants.length !== 1 ? 's' : ''}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <div className={`w-2 h-2 rounded-full ${callStatus === 'connected' ? 'bg-green-400' : callStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400'} animate-pulse`} />
+            <p className="text-sm text-gray-400">
+              {Object.keys(connectedPeers).length + 1} in call
+              {Object.keys(connectedPeers).length > 0 && (
+                <span className="text-gray-500"> — {Object.values(connectedPeers).join(', ')}</span>
+              )}
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
