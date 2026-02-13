@@ -356,9 +356,9 @@ function TeamsPage() {
           <div className="card p-12 text-center">
             <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <p className="text-gray-500 text-lg">
-              {search || filterDepartment ? 'No teams match your filters' : 'No teams found'}
+              {search ? 'No teams match your search' : 'No teams found'}
             </p>
-            {teams.length === 0 && !search && !filterDepartment && (
+            {teams.length === 0 && !search && (
               <p className="text-gray-400 text-sm mt-2 max-w-md mx-auto">
                 If you already created teams but they're not showing up, make sure you've run the database migration (database/migration-teams-loans-leaves.sql) in Supabase.
               </p>
