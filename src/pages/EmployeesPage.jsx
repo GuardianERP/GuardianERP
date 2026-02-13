@@ -1142,11 +1142,15 @@ function EmployeesPage() {
                   <tr key={employee.id}>
                     <td>
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                          <span className="text-sm font-semibold text-white">
-                            {employee.first_name[0]}{employee.last_name[0]}
-                          </span>
-                        </div>
+                        {employee.avatar_url || employee.profile_picture ? (
+                          <img src={employee.avatar_url || employee.profile_picture} alt="" className="w-10 h-10 rounded-full object-cover" />
+                        ) : (
+                          <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <span className="text-sm font-semibold text-white">
+                              {employee.first_name[0]}{employee.last_name[0]}
+                            </span>
+                          </div>
+                        )}
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">
                             {employee.first_name} {employee.last_name}

@@ -438,9 +438,13 @@ function TeamsPage() {
                   onClick={() => handleAddMember(emp.id)}
                   className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-guardian-50 dark:hover:bg-guardian-900/20 transition-colors text-left"
                 >
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-guardian-400 to-guardian-600 flex items-center justify-center text-white font-medium text-sm">
-                    {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
-                  </div>
+                  {emp.avatar_url || emp.profile_picture ? (
+                    <img src={emp.avatar_url || emp.profile_picture} alt="" className="w-10 h-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-guardian-400 to-guardian-600 flex items-center justify-center text-white font-medium text-sm">
+                      {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
+                    </div>
+                  )}
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 dark:text-white text-sm">{emp.first_name} {emp.last_name}</p>
                     <p className="text-xs text-gray-500">{getDepartmentLabel(emp.department) || ''} {emp.position ? `• ${getPositionLabel(emp.position) || emp.position}` : ''}</p>

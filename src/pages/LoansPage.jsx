@@ -245,9 +245,13 @@ function LoansPage() {
                 <tr key={loan.id}>
                   <td>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-medium">
-                        {employeeName.charAt(0) || 'U'}
-                      </div>
+                      {loan.employees?.avatar_url ? (
+                        <img src={loan.employees.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-medium">
+                          {employeeName.charAt(0) || 'U'}
+                        </div>
+                      )}
                       <div>
                         <span className="font-medium text-gray-900 dark:text-white block">{employeeName}</span>
                         <span className="text-xs text-gray-500">{loan.employees?.department ? getDepartmentLabel(loan.employees.department) : ''}</span>

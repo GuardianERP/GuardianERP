@@ -187,9 +187,17 @@ function MyProfilePage() {
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
       <div className="flex items-center gap-6">
-        <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-          {profileData.firstName?.[0]}{profileData.lastName?.[0]}
-        </div>
+        {employeeData?.avatar_url || employeeData?.profile_picture ? (
+          <img 
+            src={employeeData.avatar_url || employeeData.profile_picture} 
+            alt="" 
+            className="w-20 h-20 rounded-full object-cover shadow-lg"
+          />
+        ) : (
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+            {profileData.firstName?.[0]}{profileData.lastName?.[0]}
+          </div>
+        )}
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             {profileData.firstName} {profileData.lastName}
@@ -315,50 +323,42 @@ function MyProfilePage() {
 
           {/* Info Cards */}
           <div className="space-y-4">
-            {/* Employment Info */}
+            {/* Employment Info - Redesigned with icons on top */}
             {employeeData && (
               <div className="card p-4">
                 <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase mb-3">
                   Employment Details
                 </h3>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Building2 className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Department</p>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {getDepartmentLabel(employeeData.department) || 'Not assigned'}
-                      </p>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
+                    <Building2 className="w-5 h-5 text-blue-600 dark:text-blue-400 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Department</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                      {getDepartmentLabel(employeeData.department) || 'Not assigned'}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Briefcase className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Position</p>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {getPositionLabel(employeeData.role) || 'Employee'}
-                      </p>
-                    </div>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 text-center">
+                    <Briefcase className="w-5 h-5 text-purple-600 dark:text-purple-400 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Position</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                      {getPositionLabel(employeeData.role) || 'Employee'}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Joining Date</p>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {employeeData.joining_date 
-                          ? new Date(employeeData.joining_date).toLocaleDateString()
-                          : 'Not set'}
-                      </p>
-                    </div>
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+                    <Calendar className="w-5 h-5 text-green-600 dark:text-green-400 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Joining Date</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">
+                      {employeeData.joining_date 
+                        ? new Date(employeeData.joining_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Not set'}
+                    </p>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Monthly Salary</p>
-                      <p className="font-medium text-gray-900 dark:text-white">
-                        {formatCurrency(employeeData.salary_pkr)}
-                      </p>
-                    </div>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
+                    <DollarSign className="w-5 h-5 text-amber-600 dark:text-amber-400 mx-auto mb-1" />
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Monthly Salary</p>
+                    <p className="font-medium text-gray-900 dark:text-white text-sm">
+                      {formatCurrency(employeeData.salary_pkr)}
+                    </p>
                   </div>
                 </div>
               </div>
