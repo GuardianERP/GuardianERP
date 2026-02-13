@@ -355,6 +355,13 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }) {
           <LogOut className="w-5 h-5 flex-shrink-0" />
           {(!collapsed || isMobile) && <span className="text-sm">Logout</span>}
         </button>
+        
+        {/* Version Display */}
+        {(!collapsed || isMobile) && (
+          <div className="mt-3 text-center text-xs text-gray-500">
+            Guardian ERP v2.6.5
+          </div>
+        )}
       </div>
     </aside>
   );

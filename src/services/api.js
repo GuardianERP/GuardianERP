@@ -3264,16 +3264,31 @@ export const teamsAPI = {
     checkSupabase();
     
     try {
+      // First try simple query without joins
       const { data, error } = await supabase
         .from('teams')
-        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture))`)
+        .select('*')
         .order('name');
-      
+
       if (error) {
         console.error('Teams fetch error:', error);
-        return []; // Return empty array instead of throwing
+        return [];
       }
-      return data || [];
+      
+      // Fetch team members separately for each team
+      const teamsWithMembers = await Promise.all((data || []).map(async (team) => {
+        try {
+          const { data: members } = await supabase
+            .from('team_members')
+            .select('*, employees (id, first_name, last_name, department, position, profile_picture)')
+            .eq('team_id', team.id);
+          return { ...team, team_members: members || [] };
+        } catch {
+          return { ...team, team_members: [] };
+        }
+      }));
+      
+      return teamsWithMembers;
     } catch (err) {
       console.error('Teams API exception:', err);
       return []; // Graceful fallback
@@ -3458,7 +3473,6 @@ export const loansAPI = {
       repayment_plan: data.repayment_plan || '',
       installment_amount: data.installment_amount || null,
       total_installments: data.total_installments || null,
-      notes: data.notes || '',
       status: 'pending',
     };
     
