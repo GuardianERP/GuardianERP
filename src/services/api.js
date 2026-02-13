@@ -3263,26 +3263,42 @@ export const teamsAPI = {
   getAll: async () => {
     checkSupabase();
     
-    const { data, error } = await supabase
-      .from('teams')
-      .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture))`)
-      .order('name');
-    
-    if (error) handleError(error, 'fetch teams');
-    return data || [];
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture))`)
+        .order('name');
+      
+      if (error) {
+        console.error('Teams fetch error:', error);
+        return []; // Return empty array instead of throwing
+      }
+      return data || [];
+    } catch (err) {
+      console.error('Teams API exception:', err);
+      return []; // Graceful fallback
+    }
   },
   
   getById: async (id) => {
     checkSupabase();
     
-    const { data, error } = await supabase
-      .from('teams')
-      .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture, user_id))`)
-      .eq('id', id)
-      .single();
-    
-    if (error) handleError(error, 'fetch team');
-    return data;
+    try {
+      const { data, error } = await supabase
+        .from('teams')
+        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture, user_id))`)
+        .eq('id', id)
+        .single();
+      
+      if (error) {
+        console.error('Team fetch error:', error);
+        return null;
+      }
+      return data;
+    } catch (err) {
+      console.error('Team getById exception:', err);
+      return null;
+    }
   },
   
   create: async (teamData) => {
@@ -3301,7 +3317,10 @@ export const teamsAPI = {
       .select()
       .single();
     
-    if (error) handleError(error, 'create team');
+    if (error) {
+      console.error('Team create error:', error);
+      throw new Error('Failed to create team. Make sure you ran the teams migration (database/migration-teams-loans-leaves.sql).');
+    }
     return data;
   },
   
