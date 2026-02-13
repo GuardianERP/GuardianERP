@@ -1599,8 +1599,6 @@ export const leavesAPI = {
 
     return leave;
   },
-    return leave;
-  },
   
   getBalance: async (employeeId) => {
     checkSupabase();
