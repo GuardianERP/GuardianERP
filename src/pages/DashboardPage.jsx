@@ -25,15 +25,25 @@ import { StatsSkeleton, InlineSpinner } from '../components/common/LoadingSpinne
 
 // Stat Card Component
 function StatCard({ title, value, change, changeType, icon: Icon, color, onClick }) {
+  // Auto-size font based on value length to prevent overflow
+  const getValueFontSize = (val) => {
+    const len = String(val).length;
+    if (len <= 5) return 'text-3xl';
+    if (len <= 8) return 'text-2xl';
+    if (len <= 12) return 'text-xl';
+    if (len <= 16) return 'text-lg';
+    return 'text-base';
+  };
+  
   return (
     <div 
-      className="card p-6 hover:shadow-lg transition-all cursor-pointer"
+      className="card p-6 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
       onClick={onClick}
     >
       <div className="flex items-start justify-between">
-        <div>
+        <div className="min-w-0 flex-1 pr-2">
           <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
+          <p className={`${getValueFontSize(value)} font-bold text-gray-900 dark:text-white mt-1 truncate`}>
             {value}
           </p>
           {change && (
@@ -49,7 +59,7 @@ function StatCard({ title, value, change, changeType, icon: Icon, color, onClick
             </div>
           )}
         </div>
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${color}`}>
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${color}`}>
           <Icon className="w-6 h-6 text-white" />
         </div>
       </div>

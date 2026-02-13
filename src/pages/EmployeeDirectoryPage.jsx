@@ -1,13 +1,12 @@
 /**
  * Guardian Desktop ERP - Employee Directory Page
- * Public employee directory visible by all users, grouped by department
- * Shows: Name, Department, Position, Joining Date, Email, City, Province, Country
+ * Beautiful employee directory with seniority sorting, search, and filtering
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, Users, Building2, MapPin, Mail, Calendar,
-  ChevronDown, ChevronRight, User
+  ChevronDown, ChevronRight, Award, Clock, Grid, List, SortAsc, SortDesc
 } from 'lucide-react';
 import { employeesAPI } from '../services/api';
 import { getDepartmentLabel, getPositionLabel, DEPARTMENT_LIST } from '../data/organizationConfig';
@@ -18,8 +17,10 @@ function EmployeeDirectoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
+  const [sortBy, setSortBy] = useState('seniority'); // 'seniority', 'name', 'department'
+  const [sortOrder, setSortOrder] = useState('desc'); // 'asc' or 'desc'
+  const [viewMode, setViewMode] = useState('grid'); // 'grid', 'list', 'department'
   const [expandedDepts, setExpandedDepts] = useState(new Set());
-  const [viewMode, setViewMode] = useState('department'); // 'department' or 'list'
 
   useEffect(() => {
     fetchEmployees();
@@ -29,7 +30,6 @@ function EmployeeDirectoryPage() {
     try {
       const data = await employeesAPI.getAll();
       setEmployees(data || []);
-      // Expand all departments by default
       const depts = new Set((data || []).map(e => e.department).filter(Boolean));
       setExpandedDepts(depts);
     } catch (error) {
@@ -41,6 +41,73 @@ function EmployeeDirectoryPage() {
     }
   };
 
+  const getSeniority = (joiningDate) => {
+    if (!joiningDate) return 0;
+    const joined = new Date(joiningDate);
+    const today = new Date();
+    return Math.floor((today - joined) / (1000 * 60 * 60 * 24));
+  };
+
+  const formatSeniority = (days) => {
+    if (days < 30) return `${days} days`;
+    if (days < 365) return `${Math.floor(days / 30)} months`;
+    const years = Math.floor(days / 365);
+    const months = Math.floor((days % 365) / 30);
+    if (months === 0) return `${years}y`;
+    return `${years}y ${months}m`;
+  };
+
+  const processedEmployees = useMemo(() => {
+    let result = employees.filter(emp => {
+      const name = `${emp.first_name || ''} ${emp.last_name || ''}`.trim().toLowerCase();
+      const dept = (emp.department || '').toLowerCase();
+      const pos = (emp.position || '').toLowerCase();
+      const email = (emp.email || '').toLowerCase();
+      const city = (emp.city || '').toLowerCase();
+      const searchLower = search.toLowerCase();
+
+      const matchesSearch = !search || 
+        name.includes(searchLower) || dept.includes(searchLower) || 
+        pos.includes(searchLower) || email.includes(searchLower) || city.includes(searchLower);
+      const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
+      return matchesSearch && matchesDept;
+    });
+
+    result.sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'seniority':
+          comparison = getSeniority(b.joining_date) - getSeniority(a.joining_date);
+          break;
+        case 'name':
+          comparison = `${a.first_name || ''} ${a.last_name || ''}`.localeCompare(`${b.first_name || ''} ${b.last_name || ''}`);
+          break;
+        case 'department':
+          comparison = (getDepartmentLabel(a.department) || a.department || '').localeCompare(getDepartmentLabel(b.department) || b.department || '');
+          break;
+        default: comparison = 0;
+      }
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+
+    return result;
+  }, [employees, search, filterDepartment, sortBy, sortOrder]);
+
+  const employeesByDepartment = useMemo(() => {
+    return processedEmployees.reduce((groups, emp) => {
+      const dept = emp.department || 'unassigned';
+      if (!groups[dept]) groups[dept] = [];
+      groups[dept].push(emp);
+      return groups;
+    }, {});
+  }, [processedEmployees]);
+
+  const sortedDepartments = Object.keys(employeesByDepartment).sort((a, b) => {
+    if (a === 'unassigned') return 1;
+    if (b === 'unassigned') return -1;
+    return (getDepartmentLabel(a) || a).localeCompare(getDepartmentLabel(b) || b);
+  });
+
   const toggleDepartment = (dept) => {
     setExpandedDepts(prev => {
       const next = new Set(prev);
@@ -50,98 +117,147 @@ function EmployeeDirectoryPage() {
     });
   };
 
-  const filteredEmployees = employees.filter(emp => {
-    const name = `${emp.first_name || ''} ${emp.last_name || ''}`.trim().toLowerCase();
-    const dept = (emp.department || '').toLowerCase();
-    const pos = (emp.position || '').toLowerCase();
-    const email = (emp.email || '').toLowerCase();
-    const city = (emp.city || '').toLowerCase();
-    const searchLower = search.toLowerCase();
-
-    const matchesSearch = name.includes(searchLower) ||
-                          dept.includes(searchLower) ||
-                          pos.includes(searchLower) ||
-                          email.includes(searchLower) ||
-                          city.includes(searchLower);
-    const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
-    return matchesSearch && matchesDept;
-  });
-
-  // Group employees by department
-  const employeesByDepartment = filteredEmployees.reduce((groups, emp) => {
-    const dept = emp.department || 'unassigned';
-    if (!groups[dept]) groups[dept] = [];
-    groups[dept].push(emp);
-    return groups;
-  }, {});
-
-  // Sort departments
-  const sortedDepartments = Object.keys(employeesByDepartment).sort((a, b) => {
-    if (a === 'unassigned') return 1;
-    if (b === 'unassigned') return -1;
-    return (getDepartmentLabel(a) || a).localeCompare(getDepartmentLabel(b) || b);
-  });
+  const getSeniorityBadge = (days) => {
+    if (days >= 1825) return { bg: 'bg-gradient-to-r from-amber-500 to-yellow-400', text: 'text-white', icon: '🏆' };
+    if (days >= 1095) return { bg: 'bg-gradient-to-r from-purple-500 to-indigo-500', text: 'text-white', icon: '⭐' };
+    if (days >= 730) return { bg: 'bg-gradient-to-r from-blue-500 to-cyan-500', text: 'text-white', icon: '💎' };
+    if (days >= 365) return { bg: 'bg-gradient-to-r from-green-500 to-emerald-500', text: 'text-white', icon: '🌟' };
+    if (days >= 180) return { bg: 'bg-teal-100 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', icon: '✨' };
+    if (days >= 90) return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-300', icon: '' };
+    return { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-300', icon: '🆕' };
+  };
 
   const departmentColors = {
-    management: 'from-blue-500 to-blue-700',
-    operations: 'from-green-500 to-green-700',
-    marketing: 'from-purple-500 to-purple-700',
-    technology: 'from-cyan-500 to-cyan-700',
-    hr: 'from-orange-500 to-orange-700',
-    finance: 'from-yellow-500 to-yellow-700',
+    management: 'from-slate-600 to-slate-800',
+    operations: 'from-emerald-500 to-green-600',
+    marketing: 'from-fuchsia-500 to-purple-600',
+    technology: 'from-cyan-500 to-blue-600',
+    hr: 'from-orange-500 to-red-500',
+    finance: 'from-amber-500 to-yellow-600',
     unassigned: 'from-gray-400 to-gray-600',
+  };
+
+  const EmployeeCard = ({ emp }) => {
+    const seniority = getSeniority(emp.joining_date);
+    const badge = getSeniorityBadge(seniority);
+    
+    return (
+      <div className="group relative bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 hover:shadow-xl hover:shadow-blue-500/10 hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300">
+        {seniority >= 365 && (
+          <div className="absolute -top-2 -right-2 z-10">
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full shadow-md ${badge.bg} ${badge.text}`}>
+              {badge.icon} {formatSeniority(seniority)}
+            </span>
+          </div>
+        )}
+        
+        <div className="flex items-start gap-4">
+          <div className="relative flex-shrink-0">
+            {emp.profile_picture ? (
+              <img src={emp.profile_picture} alt="" className="w-14 h-14 rounded-xl object-cover ring-2 ring-gray-100 dark:ring-gray-700" />
+            ) : (
+              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
+              </div>
+            )}
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-gray-900 dark:text-white truncate">
+              {emp.first_name} {emp.last_name}
+            </h3>
+            <p className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">
+              {getPositionLabel(emp.position) || emp.position || 'No Position'}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              {getDepartmentLabel(emp.department) || 'Unassigned'}
+            </p>
+          </div>
+        </div>
+        
+        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700 space-y-2">
+          {emp.email && (
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <Mail className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <span className="truncate">{emp.email}</span>
+            </div>
+          )}
+          {(emp.city || emp.country) && (
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <MapPin className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+              <span className="truncate">{[emp.city, emp.country].filter(Boolean).join(', ')}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm">
+            <Clock className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+            <span className={seniority >= 365 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-600 dark:text-gray-400'}>
+              {formatSeniority(seniority)} tenure
+            </span>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-guardian-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center">
-            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{employees.length}</p>
-            <p className="text-sm text-gray-500">Total Employees</p>
-          </div>
-        </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-xl flex items-center justify-center">
-            <Building2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">{sortedDepartments.length}</p>
-            <p className="text-sm text-gray-500">Departments</p>
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card p-4 bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-xs font-medium">Total</p>
+              <p className="text-2xl font-bold">{employees.length}</p>
+            </div>
+            <Users className="w-8 h-8 text-blue-200" />
           </div>
         </div>
-        <div className="card p-4 flex items-center gap-4">
-          <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-xl flex items-center justify-center">
-            <MapPin className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+        <div className="card p-4 bg-gradient-to-br from-emerald-500 to-green-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-xs font-medium">Departments</p>
+              <p className="text-2xl font-bold">{new Set(employees.map(e => e.department).filter(Boolean)).size}</p>
+            </div>
+            <Building2 className="w-8 h-8 text-emerald-200" />
           </div>
-          <div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {new Set(employees.map(e => e.country).filter(Boolean)).size}
-            </p>
-            <p className="text-sm text-gray-500">Countries</p>
+        </div>
+        <div className="card p-4 bg-gradient-to-br from-amber-500 to-orange-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-amber-100 text-xs font-medium">Avg Tenure</p>
+              <p className="text-2xl font-bold">
+                {formatSeniority(Math.round(employees.reduce((sum, e) => sum + getSeniority(e.joining_date), 0) / (employees.length || 1)))}
+              </p>
+            </div>
+            <Award className="w-8 h-8 text-amber-200" />
+          </div>
+        </div>
+        <div className="card p-4 bg-gradient-to-br from-purple-500 to-indigo-600 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-xs font-medium">Countries</p>
+              <p className="text-2xl font-bold">{new Set(employees.map(e => e.country).filter(Boolean)).size}</p>
+            </div>
+            <MapPin className="w-8 h-8 text-purple-200" />
           </div>
         </div>
       </div>
 
-      {/* Search & Filter */}
+      {/* Filters */}
       <div className="card p-4">
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto flex-wrap">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input type="text" placeholder="Search by name, email, city..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-10 w-full sm:w-72" />
+              <input type="text" placeholder="Search employees..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-10 w-full sm:w-56" />
             </div>
             <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} className="input">
               <option value="all">All Departments</option>
@@ -149,20 +265,105 @@ function EmployeeDirectoryPage() {
                 <option key={dept.value} value={dept.value}>{dept.label}</option>
               ))}
             </select>
+            <div className="flex items-center gap-2">
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="input">
+                <option value="seniority">By Seniority</option>
+                <option value="name">By Name</option>
+                <option value="department">By Department</option>
+              </select>
+              <button onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')} className="btn btn-ghost p-2">
+                {sortOrder === 'desc' ? <SortDesc className="w-5 h-5" /> : <SortAsc className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => setViewMode('department')} className={`btn btn-sm ${viewMode === 'department' ? 'btn-primary' : 'btn-ghost'}`}>
-              <Building2 className="w-4 h-4 mr-1" /> By Department
+          
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button onClick={() => setViewMode('grid')} className={`p-2 rounded-md transition-colors ${viewMode === 'grid' ? 'bg-white dark:bg-gray-700 shadow-sm' : ''}`}>
+              <Grid className="w-4 h-4" />
             </button>
-            <button onClick={() => setViewMode('list')} className={`btn btn-sm ${viewMode === 'list' ? 'btn-primary' : 'btn-ghost'}`}>
-              <Users className="w-4 h-4 mr-1" /> List View
+            <button onClick={() => setViewMode('list')} className={`p-2 rounded-md transition-colors ${viewMode === 'list' ? 'bg-white dark:bg-gray-700 shadow-sm' : ''}`}>
+              <List className="w-4 h-4" />
+            </button>
+            <button onClick={() => setViewMode('department')} className={`p-2 rounded-md transition-colors ${viewMode === 'department' ? 'bg-white dark:bg-gray-700 shadow-sm' : ''}`}>
+              <Building2 className="w-4 h-4" />
             </button>
           </div>
         </div>
+        <p className="text-sm text-gray-500 mt-3">
+          Showing {processedEmployees.length} of {employees.length} employees
+          {sortBy === 'seniority' && <span className="text-blue-600 dark:text-blue-400 ml-1">(by tenure {sortOrder === 'desc' ? '↓' : '↑'})</span>}
+        </p>
       </div>
 
+      {/* Grid View */}
+      {viewMode === 'grid' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+          {processedEmployees.map(emp => <EmployeeCard key={emp.id} emp={emp} />)}
+          {processedEmployees.length === 0 && (
+            <div className="col-span-full text-center py-16">
+              <Users className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+              <p className="text-gray-500">No employees found</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* List View */}
+      {viewMode === 'list' && (
+        <div className="card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 dark:bg-gray-800">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Employee</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Department</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Position</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Tenure</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Location</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase">Email</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {processedEmployees.map(emp => {
+                  const seniority = getSeniority(emp.joining_date);
+                  const badge = getSeniorityBadge(seniority);
+                  return (
+                    <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {emp.profile_picture ? (
+                            <img src={emp.profile_picture} alt="" className="w-9 h-9 rounded-lg object-cover" />
+                          ) : (
+                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                              {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
+                            </div>
+                          )}
+                          <span className="font-medium text-gray-900 dark:text-white">{emp.first_name} {emp.last_name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{getDepartmentLabel(emp.department) || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{getPositionLabel(emp.position) || emp.position || '-'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${badge.bg} ${badge.text}`}>
+                          {badge.icon} {formatSeniority(seniority)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{[emp.city, emp.country].filter(Boolean).join(', ') || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{emp.email || '-'}</td>
+                    </tr>
+                  );
+                })}
+                {processedEmployees.length === 0 && (
+                  <tr><td colSpan={6} className="text-center py-12 text-gray-500">No employees found</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Department View */}
-      {viewMode === 'department' ? (
+      {viewMode === 'department' && (
         <div className="space-y-4">
           {sortedDepartments.map(dept => {
             const deptEmployees = employeesByDepartment[dept];
@@ -171,110 +372,22 @@ function EmployeeDirectoryPage() {
 
             return (
               <div key={dept} className="card overflow-hidden">
-                <button
-                  onClick={() => toggleDepartment(dept)}
-                  className={`w-full p-4 flex items-center justify-between bg-gradient-to-r ${gradient} text-white`}
-                >
+                <button onClick={() => toggleDepartment(dept)} className={`w-full p-4 flex items-center justify-between bg-gradient-to-r ${gradient} text-white`}>
                   <div className="flex items-center gap-3">
                     <Building2 className="w-5 h-5" />
                     <span className="font-bold text-lg">{getDepartmentLabel(dept) || dept}</span>
-                    <span className="bg-white/20 px-2 py-0.5 rounded-full text-sm">{deptEmployees.length} members</span>
+                    <span className="bg-white/20 px-3 py-1 rounded-full text-sm">{deptEmployees.length}</span>
                   </div>
                   {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                 </button>
                 {isExpanded && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-                    {deptEmployees.map(emp => (
-                      <div key={emp.id} className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-3 mb-3">
-                          {emp.profile_picture ? (
-                            <img src={emp.profile_picture} alt="" className="w-12 h-12 rounded-full object-cover" />
-                          ) : (
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-guardian-400 to-guardian-600 flex items-center justify-center text-white font-bold">
-                              {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
-                            </div>
-                          )}
-                          <div>
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {emp.first_name} {emp.last_name}
-                            </p>
-                            <p className="text-sm text-gray-500">{getPositionLabel(emp.position) || emp.position || '-'}</p>
-                          </div>
-                        </div>
-                        <div className="space-y-1.5 text-sm">
-                          {emp.email && (
-                            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                              <Mail className="w-3.5 h-3.5" />
-                              <span className="truncate">{emp.email}</span>
-                            </div>
-                          )}
-                          {(emp.city || emp.province || emp.country) && (
-                            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                              <MapPin className="w-3.5 h-3.5" />
-                              <span>{[emp.city, emp.province, emp.country].filter(Boolean).join(', ')}</span>
-                            </div>
-                          )}
-                          {emp.joining_date && (
-                            <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                              <Calendar className="w-3.5 h-3.5" />
-                              <span>Joined {new Date(emp.joining_date).toLocaleDateString()}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 p-4 bg-gray-50 dark:bg-gray-800/50">
+                    {deptEmployees.map(emp => <EmployeeCard key={emp.id} emp={emp} />)}
                   </div>
                 )}
               </div>
             );
           })}
-        </div>
-      ) : (
-        /* List View */
-        <div className="card overflow-hidden">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th>Department</th>
-                <th>Position</th>
-                <th>Email</th>
-                <th>Location</th>
-                <th>Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmployees.map(emp => (
-                <tr key={emp.id}>
-                  <td>
-                    <div className="flex items-center gap-3">
-                      {emp.profile_picture ? (
-                        <img src={emp.profile_picture} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-guardian-400 to-guardian-600 flex items-center justify-center text-white font-medium text-sm">
-                          {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
-                        </div>
-                      )}
-                      <span className="font-medium text-gray-900 dark:text-white">{emp.first_name} {emp.last_name}</span>
-                    </div>
-                  </td>
-                  <td>{getDepartmentLabel(emp.department) || '-'}</td>
-                  <td>{getPositionLabel(emp.position) || emp.position || '-'}</td>
-                  <td className="text-sm">{emp.email || '-'}</td>
-                  <td className="text-sm">{[emp.city, emp.country].filter(Boolean).join(', ') || '-'}</td>
-                  <td className="text-sm">{emp.joining_date ? new Date(emp.joining_date).toLocaleDateString() : '-'}</td>
-                </tr>
-              ))}
-              {filteredEmployees.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="text-center py-12">
-                    <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                    <p className="text-gray-500">No employees found</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
         </div>
       )}
     </div>

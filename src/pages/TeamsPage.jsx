@@ -44,12 +44,15 @@ function TeamsPage() {
 
   const fetchTeams = async () => {
     try {
+      console.log('Fetching teams...');
       const data = await teamsAPI.getAll();
+      console.log('Teams fetched:', data);
       setTeams(data || []);
       // Expand all by default
       setExpandedTeams(new Set((data || []).map(t => t.id)));
     } catch (error) {
       console.error('Failed to fetch teams:', error);
+      toast.error('Failed to load teams. Make sure you ran the database migration.');
       setTeams([]);
     } finally {
       setLoading(false);
@@ -70,16 +73,19 @@ function TeamsPage() {
     e.preventDefault();
     try {
       if (editingTeam) {
-        await teamsAPI.update(editingTeam.id, formData);
+        const result = await teamsAPI.update(editingTeam.id, formData);
+        console.log('Team updated:', result);
         toast.success('Team updated successfully');
       } else {
-        await teamsAPI.create(formData);
+        const result = await teamsAPI.create(formData);
+        console.log('Team created:', result);
         toast.success('Team created successfully');
       }
-      fetchTeams();
+      await fetchTeams(); // Wait for refresh
       closeCreateModal();
     } catch (error) {
-      toast.error(error.message || 'Failed to save team');
+      console.error('Save team error:', error);
+      toast.error(error.message || 'Failed to save team. Did you run the migration SQL?');
     }
   };
 
@@ -349,7 +355,14 @@ function TeamsPage() {
         {filteredTeams.length === 0 && (
           <div className="card p-12 text-center">
             <Users className="w-16 h-16 mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-500 text-lg">No teams found</p>
+            <p className="text-gray-500 text-lg">
+              {searchQuery || filterDepartment ? 'No teams match your filters' : 'No teams found'}
+            </p>
+            {teams.length === 0 && !searchQuery && !filterDepartment && (
+              <p className="text-gray-400 text-sm mt-2 max-w-md mx-auto">
+                If you already created teams but they're not showing up, make sure you've run the database migration (database/migration-teams-loans-leaves.sql) in Supabase.
+              </p>
+            )}
             {isAdmin && (
               <button onClick={() => setShowCreateModal(true)} className="btn btn-primary mt-4">
                 <Plus className="w-4 h-4 mr-2" /> Create First Team
