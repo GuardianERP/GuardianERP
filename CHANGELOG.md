@@ -5,6 +5,45 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.0] - 2026-02-13
+
+### Added
+- **Leave Approval Workflow** — Multi-level approval chain (Employee → Team Lead → CEO)
+  - Team lead can recommend/forward or reject leave requests
+  - CEO final approval with full audit trail
+  - Approval chain column shows current status
+- **Loan Request System** — Full loan management page
+  - Personal, salary advance, and emergency loan types
+  - Repayment plan calculator
+  - Admin approve/reject with notes
+  - Stats dashboard (total, pending, approved, active amount)
+- **Employee Directory** — Public directory viewable by all users
+  - Department-grouped accordion view with colored headers
+  - Flat list view with search and department filter
+  - Profile pictures, email, location, joining date
+- **Teams Management** — Team creation and member management
+  - Create/edit/delete teams (admin only)
+  - Add/remove members with team lead designation
+  - Expandable team cards with gradient department headers
+- **Admin Announcements** — Send company-wide notifications
+  - Announcement modal on Notifications page (admin only)
+  - Title, message, and urgent toggle
+  - Sends to all employees instantly
+- **Milestone Notifications** — Auto-celebrate employee milestones
+  - 100, 200, 300 days and 3, 6, 12, 24 month milestones
+  - Runs once daily, no duplicate notifications
+- **Database migration** for teams, team_members, loans tables, leave approval columns, profile-pictures bucket
+
+### Fixed
+- **BOB description** — Changed "Book of Business" to "Breakdown of Benefits"
+- **Electron menu bar** — Hidden completely (no menu bar visible)
+
+### Changed
+- Sidebar updated with Loans, Teams, and Directory navigation items
+- Header page names extended for all new routes
+- Leave API updated with approval chain support
+- Notification service expanded with milestone, announcement, and status notification functions
+
 ## [2.5.4] - 2026-02-13
 
 ### Fixed

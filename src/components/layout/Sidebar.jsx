@@ -38,6 +38,9 @@ import {
   Wallet,
   Briefcase,
   Calculator,
+  CreditCard,
+  Contact,
+  Users2,
 } from 'lucide-react';
 
 // Main menu items (no group) - with icon colors
@@ -47,6 +50,9 @@ const mainMenuItems = [
   { path: '/tasks', icon: CheckSquare, label: 'Tasks', color: 'text-green-400' },
   { path: '/meetings', icon: Video, label: 'Meetings', color: 'text-pink-400' },
   { path: '/leaves', icon: Calendar, label: 'Leaves', color: 'text-orange-400' },
+  { path: '/loans', icon: CreditCard, label: 'Loans', color: 'text-emerald-400' },
+  { path: '/teams', icon: Users2, label: 'Teams', color: 'text-indigo-400' },
+  { path: '/directory', icon: Contact, label: 'Directory', color: 'text-teal-400' },
   { path: '/chat', icon: MessageSquare, label: 'Chat', color: 'text-cyan-400' },
   { path: '/ai-assistant', icon: Bot, label: 'AI Assistant', color: 'text-violet-400' },
   { path: '/documents', icon: FolderOpen, label: 'Documents', color: 'text-amber-400' },

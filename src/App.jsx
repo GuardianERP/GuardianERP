@@ -37,6 +37,9 @@ const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 const SupervisionPage = lazy(() => import('./pages/SupervisionPage'));
 const AgreementsPage = lazy(() => import('./pages/AgreementsPage'));
+const LoansPage = lazy(() => import('./pages/LoansPage'));
+const EmployeeDirectoryPage = lazy(() => import('./pages/EmployeeDirectoryPage'));
+const TeamsPage = lazy(() => import('./pages/TeamsPage'));
 
 // Silent monitoring hooks for employees
 import useSilentMonitoring from './hooks/useSilentMonitoring';
@@ -142,6 +145,9 @@ function AppWithMonitoring() {
       // Check for birthday notifications once per day
       notificationService.checkAndSendBirthdayNotifications();
       
+      // Check for work milestone notifications once per day
+      notificationService.checkAndSendMilestoneNotifications();
+      
       // Request notification permission and test
       const initNotifications = async () => {
         const permission = await notificationService.requestPermission();
@@ -235,6 +241,9 @@ function AppWithMonitoring() {
           <Route path="ar-followup" element={<ARFollowUpPage />} />
           <Route path="vob-bob" element={<VOBBOBPage />} />
           <Route path="vob-bob-autofill" element={<VOBBOBAutoFillPage />} />
+          <Route path="loans" element={<LoansPage />} />
+          <Route path="directory" element={<EmployeeDirectoryPage />} />
+          <Route path="teams" element={<TeamsPage />} />
           
           {/* Admin-only routes */}
           <Route path="employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />

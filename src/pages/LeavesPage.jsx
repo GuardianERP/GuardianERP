@@ -1,12 +1,15 @@
 /**
  * Guardian Desktop ERP - Leaves Page
  * Leave request management with approval workflow
+ * Flow: Employee → Team Lead (recommend) → CEO/Admin (approve/reject)
+ * Or: Employee → Direct to CEO/Admin
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Plus, Search, Calendar, CheckCircle, XCircle, Clock, 
-  Umbrella, Heart, Briefcase, FileText, Filter
+  Umbrella, Heart, Briefcase, FileText, ArrowRight,
+  ThumbsUp, Send
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
 import { leavesAPI, employeesAPI } from '../services/api';
@@ -14,12 +17,27 @@ import { getDepartmentLabel, getPositionLabel } from '../data/organizationConfig
 import toast from 'react-hot-toast';
 
 // Status Badge Component
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, teamLeadStatus }) => {
   const styles = {
     pending: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
     approved: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-    rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+    rejected: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    recommended: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   };
+
+  if (status === 'pending' && teamLeadStatus === 'recommended') {
+    return (
+      <div className="flex flex-col gap-1">
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles.recommended}`}>
+          Recommended
+        </span>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles.pending}`}>
+          Awaiting CEO
+        </span>
+      </div>
+    );
+  }
+
   return (
     <span className={`px-2 py-1 rounded-full text-xs font-medium capitalize ${styles[status] || styles.pending}`}>
       {status}
@@ -48,13 +66,22 @@ function LeavesPage() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [showModal, setShowModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [showRecommendModal, setShowRecommendModal] = useState(false);
+  const [selectedLeaveId, setSelectedLeaveId] = useState(null);
+  const [rejectReason, setRejectReason] = useState('');
+  const [recommendComment, setRecommendComment] = useState('');
   
   const [formData, setFormData] = useState({
     leave_type: 'vacation',
     start_date: '',
     end_date: '',
-    reason: ''
+    reason: '',
+    team_lead_id: '',
   });
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isManager = user?.role === 'manager';
 
   useEffect(() => {
     fetchLeaves();
@@ -84,10 +111,16 @@ function LeavesPage() {
     }
   };
 
+  const getTeamLeads = () => {
+    return employees.filter(emp => {
+      const pos = (emp.position || emp.role || '').toLowerCase();
+      return pos.includes('supervisor') || pos.includes('manager') || pos.includes('lead');
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Don't pass user_id - API will get employee_id from current user
       await leavesAPI.create(formData);
       toast.success('Leave request submitted successfully');
       fetchLeaves();
@@ -107,40 +140,73 @@ function LeavesPage() {
     }
   };
 
-  const handleReject = async (leaveId, reason = '') => {
+  const openRejectModal = (leaveId) => {
+    setSelectedLeaveId(leaveId);
+    setRejectReason('');
+    setShowRejectModal(true);
+  };
+
+  const handleReject = async () => {
     try {
-      await leavesAPI.reject(leaveId, reason);
+      await leavesAPI.reject(selectedLeaveId, rejectReason);
       toast.success('Leave request rejected');
+      setShowRejectModal(false);
       fetchLeaves();
     } catch (error) {
       toast.error('Failed to reject leave request');
     }
   };
 
+  const openRecommendModal = (leaveId) => {
+    setSelectedLeaveId(leaveId);
+    setRecommendComment('');
+    setShowRecommendModal(true);
+  };
+
+  const handleRecommend = async () => {
+    try {
+      await leavesAPI.recommend(selectedLeaveId, recommendComment);
+      toast.success('Leave recommended and forwarded to CEO');
+      setShowRecommendModal(false);
+      fetchLeaves();
+    } catch (error) {
+      toast.error('Failed to recommend leave request');
+    }
+  };
+
   const closeModal = () => {
     setShowModal(false);
-    setFormData({
-      leave_type: 'vacation',
-      start_date: '',
-      end_date: '',
-      reason: ''
-    });
+    setFormData({ leave_type: 'vacation', start_date: '', end_date: '', reason: '', team_lead_id: '' });
   };
 
   const calculateDays = (start, end) => {
     const startDate = new Date(start);
     const endDate = new Date(end);
-    const diffTime = Math.abs(endDate - startDate);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    return diffDays;
+    return Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
   };
 
-  // Helper to get employee name from leave record
   const getEmployeeName = (leave) => {
-    if (leave.employees) {
-      return `${leave.employees.first_name || ''} ${leave.employees.last_name || ''}`.trim();
-    }
+    if (leave.employees) return `${leave.employees.first_name || ''} ${leave.employees.last_name || ''}`.trim();
     return 'Unknown';
+  };
+
+  const isTeamLeadForLeave = (leave) => {
+    if (!user?.employeeId || !leave.team_lead_id) return false;
+    return leave.team_lead_id === user.employeeId;
+  };
+
+  const getAvailableActions = (leave) => {
+    if (leave.status !== 'pending') return [];
+    const actions = [];
+    if (leave.approval_chain === 'team_lead' && isTeamLeadForLeave(leave) && !leave.team_lead_status) {
+      actions.push('recommend', 'reject');
+    }
+    if (isAdmin || isManager) {
+      if (leave.approval_chain === 'direct' || leave.team_lead_status === 'recommended') {
+        actions.push('approve', 'reject');
+      }
+    }
+    return [...new Set(actions)];
   };
 
   const filteredLeaves = leaves.filter(leave => {
@@ -159,6 +225,8 @@ function LeavesPage() {
     approved: leaves.filter(l => l.status === 'approved').length,
     rejected: leaves.filter(l => l.status === 'rejected').length
   };
+
+  const teamLeads = getTeamLeads();
 
   if (loading) {
     return (
@@ -216,29 +284,15 @@ function LeavesPage() {
           <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="input pl-10 w-full sm:w-64"
-              />
+              <input type="text" placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-10 w-full sm:w-64" />
             </div>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="input"
-            >
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="input">
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
               <option value="approved">Approved</option>
               <option value="rejected">Rejected</option>
             </select>
-            <select
-              value={filterType}
-              onChange={(e) => setFilterType(e.target.value)}
-              className="input"
-            >
+            <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="input">
               <option value="all">All Types</option>
               <option value="sick">Sick Leave</option>
               <option value="vacation">Vacation</option>
@@ -262,6 +316,7 @@ function LeavesPage() {
               <th>Type</th>
               <th>Duration</th>
               <th>Reason</th>
+              <th>Approval Flow</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -269,6 +324,7 @@ function LeavesPage() {
           <tbody>
             {filteredLeaves.map((leave) => {
               const employeeName = getEmployeeName(leave);
+              const actions = getAvailableActions(leave);
               return (
                 <tr key={leave.id}>
                   <td>
@@ -277,9 +333,7 @@ function LeavesPage() {
                         {employeeName.charAt(0) || 'U'}
                       </div>
                       <div>
-                        <span className="font-medium text-gray-900 dark:text-white block">
-                          {employeeName}
-                        </span>
+                        <span className="font-medium text-gray-900 dark:text-white block">{employeeName}</span>
                         <span className="text-xs text-gray-500">
                           {getPositionLabel(leave.employees?.role) || ''}{leave.employees?.role && leave.employees?.department ? ' • ' : ''}{getDepartmentLabel(leave.employees?.department) || ''}
                         </span>
@@ -301,27 +355,43 @@ function LeavesPage() {
                     </div>
                   </td>
                   <td className="max-w-xs truncate">{leave.reason || '-'}</td>
-                  <td><StatusBadge status={leave.status} /></td>
                   <td>
-                    {leave.status === 'pending' && user.role === 'admin' && (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleApprove(leave.id)}
-                          className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors"
-                          title="Approve"
-                        >
-                          <CheckCircle className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleReject(leave.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          title="Reject"
-                        >
-                          <XCircle className="w-5 h-5" />
-                        </button>
+                    <div className="text-xs">
+                      {leave.approval_chain === 'team_lead' ? (
+                        <div className="flex items-center gap-1 text-blue-600 dark:text-blue-400">
+                          <span>Team Lead</span>
+                          <ArrowRight className="w-3 h-3" />
+                          <span>CEO</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">Direct to CEO</span>
+                      )}
+                      {leave.team_lead_comment && (
+                        <p className="text-gray-400 mt-1 italic text-[10px]">"{leave.team_lead_comment}"</p>
+                      )}
+                    </div>
+                  </td>
+                  <td><StatusBadge status={leave.status} teamLeadStatus={leave.team_lead_status} /></td>
+                  <td>
+                    {actions.length > 0 ? (
+                      <div className="flex items-center gap-1">
+                        {actions.includes('recommend') && (
+                          <button onClick={() => openRecommendModal(leave.id)} className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Recommend & Forward">
+                            <ThumbsUp className="w-5 h-5" />
+                          </button>
+                        )}
+                        {actions.includes('approve') && (
+                          <button onClick={() => handleApprove(leave.id)} className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors" title="Approve">
+                            <CheckCircle className="w-5 h-5" />
+                          </button>
+                        )}
+                        {actions.includes('reject') && (
+                          <button onClick={() => openRejectModal(leave.id)} className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Reject">
+                            <XCircle className="w-5 h-5" />
+                          </button>
+                        )}
                       </div>
-                    )}
-                    {leave.status !== 'pending' && (
+                    ) : (
                       <span className="text-sm text-gray-500">-</span>
                     )}
                   </td>
@@ -330,7 +400,7 @@ function LeavesPage() {
             })}
             {filteredLeaves.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center py-12">
+                <td colSpan={7} className="text-center py-12">
                   <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
                   <p className="text-gray-500">No leave requests found</p>
                 </td>
@@ -344,20 +414,11 @@ function LeavesPage() {
       {showModal && (
         <div className="modal-overlay" onClick={closeModal}>
           <div className="modal-content max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-              Request Leave
-            </h2>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Request Leave</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Leave Type *
-                </label>
-                <select
-                  required
-                  value={formData.leave_type}
-                  onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })}
-                  className="input w-full"
-                >
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Leave Type *</label>
+                <select required value={formData.leave_type} onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })} className="input w-full">
                   <option value="vacation">Vacation</option>
                   <option value="sick">Sick Leave</option>
                   <option value="personal">Personal</option>
@@ -366,52 +427,85 @@ function LeavesPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Start Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    className="input w-full"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Start Date *</label>
+                  <input type="date" required value={formData.start_date} onChange={(e) => setFormData({ ...formData, start_date: e.target.value })} className="input w-full" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    End Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={formData.end_date}
-                    min={formData.start_date}
-                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                    className="input w-full"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">End Date *</label>
+                  <input type="date" required value={formData.end_date} min={formData.start_date} onChange={(e) => setFormData({ ...formData, end_date: e.target.value })} className="input w-full" />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Reason
-                </label>
-                <textarea
-                  value={formData.reason}
-                  onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  className="input w-full"
-                  rows={3}
-                  placeholder="Explain your reason for leave..."
-                />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Send Request To</label>
+                <select value={formData.team_lead_id} onChange={(e) => setFormData({ ...formData, team_lead_id: e.target.value })} className="input w-full">
+                  <option value="">Direct to CEO / Admin</option>
+                  {teamLeads.map(lead => (
+                    <option key={lead.id} value={lead.id}>
+                      {lead.first_name} {lead.last_name} ({getPositionLabel(lead.position || lead.role) || 'Supervisor'})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">
+                  {formData.team_lead_id ? 'Request goes to team lead first, then forwarded to CEO.' : 'Request goes directly to CEO/Admin.'}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason</label>
+                <textarea value={formData.reason} onChange={(e) => setFormData({ ...formData, reason: e.target.value })} className="input w-full" rows={3} placeholder="Explain your leave reason..." />
               </div>
               <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={closeModal} className="btn btn-ghost">
-                  Cancel
-                </button>
+                <button type="button" onClick={closeModal} className="btn btn-ghost">Cancel</button>
                 <button type="submit" className="btn btn-primary">
+                  <Send className="w-4 h-4 mr-2" />
                   Submit Request
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="modal-overlay" onClick={() => setShowRejectModal(false)}>
+          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Reject Leave Request</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reason for Rejection</label>
+                <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} className="input w-full" rows={3} placeholder="Provide a reason..." />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowRejectModal(false)} className="btn btn-ghost">Cancel</button>
+                <button onClick={handleReject} className="btn bg-red-600 hover:bg-red-700 text-white">
+                  <XCircle className="w-4 h-4 mr-2" />
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recommend Modal */}
+      {showRecommendModal && (
+        <div className="modal-overlay" onClick={() => setShowRecommendModal(false)}>
+          <div className="modal-content max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Recommend Leave Request</h2>
+            <p className="text-sm text-gray-500 mb-4">This will forward the request to CEO/Admin with your recommendation.</p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comment (Optional)</label>
+                <textarea value={recommendComment} onChange={(e) => setRecommendComment(e.target.value)} className="input w-full" rows={3} placeholder="Add a comment for the CEO..." />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowRecommendModal(false)} className="btn btn-ghost">Cancel</button>
+                <button onClick={handleRecommend} className="btn bg-blue-600 hover:bg-blue-700 text-white">
+                  <ThumbsUp className="w-4 h-4 mr-2" />
+                  Recommend & Forward
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

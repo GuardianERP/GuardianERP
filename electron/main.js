@@ -3,7 +3,7 @@
  * Handles window management, IPC communication, and native OS integration
  */
 
-const { app, BrowserWindow, ipcMain, Notification, shell, dialog, session, desktopCapturer, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, Notification, shell, dialog, session, desktopCapturer, safeStorage, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { initAutoUpdater } = require('./updater');
@@ -132,6 +132,9 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
  * Create the main application window
  */
 function createWindow() {
+  // Remove the default menu bar completely
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -149,7 +152,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#0f172a',
     titleBarStyle: 'default',
-    autoHideMenuBar: false,
+    autoHideMenuBar: true,
   });
 
   // Remove Content-Security-Policy headers that block Supabase

@@ -1488,6 +1488,8 @@ export const leavesAPI = {
       days,
       reason: data.reason || '',
       status: 'pending',
+      approval_chain: data.team_lead_id ? 'team_lead' : 'direct',
+      team_lead_id: data.team_lead_id || null,
     };
     
     const { data: leave, error } = await supabase
@@ -1518,10 +1520,49 @@ export const leavesAPI = {
         approved_at: new Date().toISOString(),
       })
       .eq('id', id)
-      .select(`*, employees (id, first_name, last_name, department)`)
+      .select(`*, employees (id, first_name, last_name, department, user_id)`)
       .single();
     
     if (error) handleError(error, 'approve leave');
+
+    // Send notification to the employee
+    if (leave?.employees?.user_id) {
+      const user = getCurrentUser();
+      const approverName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Admin';
+      notificationService.sendLeaveStatusNotification(leave.employees.user_id, 'approved', leave.leave_type, approverName);
+    }
+
+    return leave;
+  },
+
+  /**
+   * Team lead recommends a leave (forwards to CEO/admin for final approval)
+   */
+  recommend: async (id, comment = '') => {
+    checkSupabase();
+    
+    const employeeId = await getCurrentEmployeeId();
+    
+    const { data: leave, error } = await supabase
+      .from('leaves')
+      .update({
+        team_lead_status: 'recommended',
+        team_lead_comment: comment,
+        team_lead_action_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select(`*, employees (id, first_name, last_name, department, user_id)`)
+      .single();
+    
+    if (error) handleError(error, 'recommend leave');
+
+    // Notify the employee
+    if (leave?.employees?.user_id) {
+      const user = getCurrentUser();
+      const recommenderName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Team Lead';
+      notificationService.sendLeaveStatusNotification(leave.employees.user_id, 'recommended', leave.leave_type, recommenderName);
+    }
+
     return leave;
   },
   
@@ -1544,10 +1585,20 @@ export const leavesAPI = {
         rejection_reason: reason || '',
       })
       .eq('id', id)
-      .select(`*, employees (id, first_name, last_name, department)`)
+      .select(`*, employees (id, first_name, last_name, department, user_id)`)
       .single();
     
     if (error) handleError(error, 'reject leave');
+    
+    // Send notification to the employee
+    if (leave?.employees?.user_id) {
+      const user = getCurrentUser();
+      const rejecterName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Admin';
+      notificationService.sendLeaveStatusNotification(leave.employees.user_id, 'rejected', leave.leave_type, rejecterName);
+    }
+
+    return leave;
+  },
     return leave;
   },
   
@@ -3207,6 +3258,269 @@ export const vobRecordsAPI = {
 };
 
 // ============================================
+// Teams API
+// ============================================
+
+export const teamsAPI = {
+  getAll: async () => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('teams')
+      .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture))`)
+      .order('name');
+    
+    if (error) handleError(error, 'fetch teams');
+    return data || [];
+  },
+  
+  getById: async (id) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('teams')
+      .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture, user_id))`)
+      .eq('id', id)
+      .single();
+    
+    if (error) handleError(error, 'fetch team');
+    return data;
+  },
+  
+  create: async (teamData) => {
+    checkSupabase();
+    
+    const user = getCurrentUser();
+    const { data, error } = await supabase
+      .from('teams')
+      .insert({
+        name: teamData.name,
+        description: teamData.description || '',
+        department: teamData.department || '',
+        team_lead_id: teamData.team_lead_id || null,
+        created_by: user?.id,
+      })
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'create team');
+    return data;
+  },
+  
+  update: async (id, teamData) => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('teams')
+      .update({
+        name: teamData.name,
+        description: teamData.description,
+        department: teamData.department,
+        team_lead_id: teamData.team_lead_id,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'update team');
+    return data;
+  },
+  
+  delete: async (id) => {
+    checkSupabase();
+    
+    const { error } = await supabase
+      .from('teams')
+      .delete()
+      .eq('id', id);
+    
+    if (error) handleError(error, 'delete team');
+    return { success: true };
+  },
+  
+  addMember: async (teamId, employeeId, role = 'member') => {
+    checkSupabase();
+    
+    const { data, error } = await supabase
+      .from('team_members')
+      .insert({
+        team_id: teamId,
+        employee_id: employeeId,
+        role,
+      })
+      .select(`*, employees (id, first_name, last_name, department, position)`)
+      .single();
+    
+    if (error) handleError(error, 'add team member');
+    return data;
+  },
+  
+  removeMember: async (teamId, employeeId) => {
+    checkSupabase();
+    
+    const { error } = await supabase
+      .from('team_members')
+      .delete()
+      .eq('team_id', teamId)
+      .eq('employee_id', employeeId);
+    
+    if (error) handleError(error, 'remove team member');
+    return { success: true };
+  },
+  
+  getMyTeams: async () => {
+    checkSupabase();
+    
+    const employeeId = await getCurrentEmployeeId();
+    if (!employeeId) return [];
+    
+    const { data, error } = await supabase
+      .from('team_members')
+      .select(`team_id, role, teams (id, name, description, department, team_lead_id)`)
+      .eq('employee_id', employeeId);
+    
+    if (error) handleError(error, 'fetch my teams');
+    return data?.map(tm => ({ ...tm.teams, myRole: tm.role })) || [];
+  },
+};
+
+// ============================================
+// Loans API
+// ============================================
+
+export const loansAPI = {
+  getAll: async () => {
+    checkSupabase();
+    
+    try {
+      let query = supabase
+        .from('loans')
+        .select(`*, employees (id, first_name, last_name, department, user_id)`)
+        .order('created_at', { ascending: false });
+      
+      // RBAC: Employees only see their own loans
+      if (!isAdminOrManager()) {
+        const employeeId = await getCurrentEmployeeId();
+        if (employeeId) {
+          query = query.eq('employee_id', employeeId);
+        } else {
+          return [];
+        }
+      }
+      
+      const { data, error } = await query;
+      if (error) {
+        console.error('Error fetching loans:', error);
+        return [];
+      }
+      return data || [];
+    } catch (err) {
+      console.error('Loans API error:', err);
+      return [];
+    }
+  },
+  
+  create: async (data) => {
+    checkSupabase();
+    
+    let employeeId = data.employee_id;
+    if (!employeeId) {
+      employeeId = await getCurrentEmployeeId();
+    }
+    
+    if (!employeeId) {
+      throw new Error('Employee record not found. Please contact admin.');
+    }
+    
+    const loanData = {
+      employee_id: employeeId,
+      amount: data.amount,
+      reason: data.reason || '',
+      loan_type: data.loan_type || 'personal',
+      repayment_plan: data.repayment_plan || '',
+      installment_amount: data.installment_amount || null,
+      total_installments: data.total_installments || null,
+      notes: data.notes || '',
+      status: 'pending',
+    };
+    
+    const { data: loan, error } = await supabase
+      .from('loans')
+      .insert(loanData)
+      .select()
+      .single();
+    
+    if (error) handleError(error, 'create loan request');
+    return loan;
+  },
+  
+  approve: async (id) => {
+    checkSupabase();
+    
+    if (!isAdminOrManager()) {
+      throw new Error('Access denied.');
+    }
+    
+    const employeeId = await getCurrentEmployeeId();
+    
+    const { data: loan, error } = await supabase
+      .from('loans')
+      .update({
+        status: 'approved',
+        approved_by: employeeId,
+        approved_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select(`*, employees (id, first_name, last_name, user_id)`)
+      .single();
+    
+    if (error) handleError(error, 'approve loan');
+    
+    // Notify employee
+    if (loan?.employees?.user_id) {
+      const user = getCurrentUser();
+      const approverName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Admin';
+      notificationService.sendLoanStatusNotification(loan.employees.user_id, 'approved', loan.amount, approverName);
+    }
+    
+    return loan;
+  },
+  
+  reject: async (id, reason = '') => {
+    checkSupabase();
+    
+    if (!isAdminOrManager()) {
+      throw new Error('Access denied.');
+    }
+    
+    const employeeId = await getCurrentEmployeeId();
+    
+    const { data: loan, error } = await supabase
+      .from('loans')
+      .update({
+        status: 'rejected',
+        rejected_by: employeeId,
+        rejected_at: new Date().toISOString(),
+        rejection_reason: reason,
+      })
+      .eq('id', id)
+      .select(`*, employees (id, first_name, last_name, user_id)`)
+      .single();
+    
+    if (error) handleError(error, 'reject loan');
+    
+    if (loan?.employees?.user_id) {
+      const user = getCurrentUser();
+      const rejecterName = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : 'Admin';
+      notificationService.sendLoanStatusNotification(loan.employees.user_id, 'rejected', loan.amount, rejecterName);
+    }
+    
+    return loan;
+  },
+};
+
+// ============================================
 // Roles API
 // ============================================
 
@@ -3247,4 +3561,6 @@ export default {
   vobCustomFields: vobCustomFieldsAPI,
   vobRecords: vobRecordsAPI,
   roles: rolesAPI,
+  teams: teamsAPI,
+  loans: loansAPI,
 };

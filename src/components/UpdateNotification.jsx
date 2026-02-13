@@ -22,7 +22,7 @@ import { useAutoUpdate } from '../hooks/useAutoUpdate';
 // GitHub release info for manual checking (works for portable users too)
 const GITHUB_OWNER = 'GuardianERP';
 const GITHUB_REPO = 'GuardianERP';
-const CURRENT_VERSION = '2.5.4'; // Update this with each release
+const CURRENT_VERSION = '2.6.0'; // Update this with each release
 
 function UpdateNotification() {
   const {

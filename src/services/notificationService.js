@@ -447,6 +447,205 @@ const notificationService = {
   },
 
   /**
+   * Check for employee work milestones and send notifications
+   * Milestones: 100, 200, 300 days and 3, 6, 12, 24 months
+   * Should be called once per day (on app init, deduplicated)
+   */
+  checkAndSendMilestoneNotifications: async () => {
+    try {
+      const today = new Date();
+      const todayKey = `milestone_check_${today.toISOString().slice(0, 10)}`;
+
+      // Check if we already checked today
+      if (sessionStorage.getItem(todayKey)) return;
+      sessionStorage.setItem(todayKey, 'true');
+
+      // Get all employees with joining_date
+      const { data: employees } = await supabase
+        .from('employees')
+        .select('id, user_id, first_name, last_name, joining_date')
+        .not('joining_date', 'is', null);
+
+      if (!employees || employees.length === 0) return;
+
+      // Get all employees with user_id for receiving notifications
+      const allWithUserId = employees.filter(e => e.user_id);
+
+      // Check which milestone notifications already exist today
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const { data: existingNotifs } = await supabase
+        .from('notifications')
+        .select('message')
+        .eq('type', 'info')
+        .gte('created_at', todayStart)
+        .like('title', '%Milestone%');
+
+      const existingMessages = new Set((existingNotifs || []).map(n => n.message));
+
+      // Day milestones
+      const dayMilestones = [100, 200, 300];
+      // Month milestones (in days, approximate)
+      const monthMilestones = [
+        { months: 3, days: 91, label: '3 months' },
+        { months: 6, days: 182, label: '6 months' },
+        { months: 12, days: 365, label: '1 year' },
+        { months: 24, days: 730, label: '2 years' },
+      ];
+
+      for (const emp of employees) {
+        if (!emp.joining_date) continue;
+
+        const joinDate = new Date(emp.joining_date);
+        const diffMs = today.getTime() - joinDate.getTime();
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        const name = `${emp.first_name || ''} ${emp.last_name || ''}`.trim();
+
+        // Check day milestones
+        for (const milestone of dayMilestones) {
+          if (diffDays === milestone) {
+            const message = `${name} has completed ${milestone} days at Guardian! Congratulations!`;
+            if (existingMessages.has(message)) continue;
+
+            const notifications = allWithUserId.map(e => ({
+              user_id: e.user_id,
+              title: `\u{1F3C6} ${milestone}-Day Milestone!`,
+              message,
+              type: 'info',
+              link: '/employees',
+            }));
+
+            if (notifications.length > 0) {
+              await supabase.from('notifications').insert(notifications);
+            }
+            console.log(`Milestone notification: ${name} - ${milestone} days`);
+          }
+        }
+
+        // Check month milestones
+        for (const { days, label } of monthMilestones) {
+          if (diffDays === days) {
+            const message = `${name} has completed ${label} at Guardian! Congratulations!`;
+            if (existingMessages.has(message)) continue;
+
+            const notifications = allWithUserId.map(e => ({
+              user_id: e.user_id,
+              title: `\u{1F31F} ${label} Milestone!`,
+              message,
+              type: 'info',
+              link: '/employees',
+            }));
+
+            if (notifications.length > 0) {
+              await supabase.from('notifications').insert(notifications);
+            }
+            console.log(`Milestone notification: ${name} - ${label}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check milestone notifications:', error);
+    }
+  },
+
+  /**
+   * Send admin announcement to all employees
+   * Only admins can send announcements
+   */
+  sendAdminAnnouncement: async (title, message, urgent = false) => {
+    try {
+      // Get all employees with user_id
+      const { data: allEmployees } = await supabase
+        .from('employees')
+        .select('user_id')
+        .not('user_id', 'is', null);
+
+      if (!allEmployees || allEmployees.length === 0) return { success: false, error: 'No employees found' };
+
+      const notifications = allEmployees
+        .filter(e => e.user_id)
+        .map(e => ({
+          user_id: e.user_id,
+          title: `\u{1F4E2} ${title}`,
+          message,
+          type: 'alert',
+          link: '/notifications',
+        }));
+
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications);
+      }
+
+      // Also show native notification if urgent
+      if (urgent) {
+        showNativeNotification(`\u{1F4E2} ${title}`, message);
+      }
+
+      console.log(`Admin announcement sent to ${notifications.length} users: ${title}`);
+      return { success: true, count: notifications.length };
+    } catch (error) {
+      console.error('Failed to send admin announcement:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  /**
+   * Send leave status notification to employee
+   */
+  sendLeaveStatusNotification: async (employeeUserId, status, leaveType, approverName) => {
+    try {
+      if (!employeeUserId) return;
+
+      const statusMessages = {
+        recommended: `Your ${leaveType} leave has been recommended by ${approverName} and forwarded to CEO for final approval.`,
+        approved: `Your ${leaveType} leave has been approved by ${approverName}!`,
+        rejected: `Your ${leaveType} leave has been rejected by ${approverName}.`,
+      };
+
+      const notification = {
+        user_id: employeeUserId,
+        title: status === 'approved' ? '\u{2705} Leave Approved' : status === 'rejected' ? '\u{274C} Leave Rejected' : '\u{1F4CB} Leave Recommended',
+        message: statusMessages[status] || `Your leave request status has been updated to: ${status}`,
+        type: status === 'approved' ? 'success' : status === 'rejected' ? 'alert' : 'info',
+        link: '/leaves',
+      };
+
+      await supabase.from('notifications').insert(notification);
+      showNativeNotification(notification.title, notification.message);
+    } catch (error) {
+      console.error('Failed to send leave status notification:', error);
+    }
+  },
+
+  /**
+   * Send loan status notification to employee
+   */
+  sendLoanStatusNotification: async (employeeUserId, status, amount, approverName) => {
+    try {
+      if (!employeeUserId) return;
+
+      const statusMessages = {
+        recommended: `Your loan request of $${amount} has been recommended by ${approverName} and forwarded for final approval.`,
+        approved: `Your loan request of $${amount} has been approved by ${approverName}!`,
+        rejected: `Your loan request of $${amount} has been rejected by ${approverName}.`,
+        disbursed: `Your loan of $${amount} has been disbursed!`,
+      };
+
+      const notification = {
+        user_id: employeeUserId,
+        title: status === 'approved' ? '\u{2705} Loan Approved' : status === 'rejected' ? '\u{274C} Loan Rejected' : '\u{1F4B0} Loan Update',
+        message: statusMessages[status] || `Your loan request status has been updated to: ${status}`,
+        type: status === 'approved' || status === 'disbursed' ? 'success' : status === 'rejected' ? 'alert' : 'info',
+        link: '/loans',
+      };
+
+      await supabase.from('notifications').insert(notification);
+      showNativeNotification(notification.title, notification.message);
+    } catch (error) {
+      console.error('Failed to send loan status notification:', error);
+    }
+  },
+
+  /**
    * Send task due notification to assigned employee
    * Called when a task is approaching its due date
    */

@@ -29,6 +29,9 @@ const pageNames = {
   '/attendance': 'Attendance',
   '/tasks': 'Tasks',
   '/leaves': 'Leave Management',
+  '/loans': 'Loan Requests',
+  '/teams': 'Teams',
+  '/directory': 'Employee Directory',
   '/expenses': 'Expenses',
   '/revenue': 'Revenue',
   '/reports': 'Reports',
@@ -37,6 +40,10 @@ const pageNames = {
   '/settings': 'Settings',
   '/documents': 'Documents',
   '/time-tracking': 'Time Tracking',
+  '/meetings': 'Meetings',
+  '/agreements': 'Agreements',
+  '/my-profile': 'My Profile',
+  '/ai-assistant': 'AI Assistant',
 };
 
 function Header({ onToggleSidebar, sidebarCollapsed, isMobile }) {

@@ -94,7 +94,7 @@ export const POSITIONS = {
     { value: 'billing_manager', label: 'Billing Manager', level: 'management' },
     // Specialized Roles
     { value: 'ar_specialist', label: 'Dental Biller (AR Specialist)', level: 'specialist' },
-    { value: 'bob_specialist', label: 'Dental Biller (BOB - Book of Business)', level: 'specialist' },
+    { value: 'bob_specialist', label: 'Dental Biller (BOB - Breakdown of Benefits)', level: 'specialist' },
     { value: 'credentialing_expert', label: 'Credentialing Expert', level: 'specialist' },
     { value: 'ppo_negotiator', label: 'PPO Negotiator', level: 'specialist' },
   ],

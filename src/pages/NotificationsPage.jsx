@@ -8,11 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Bell, Check, CheckCheck, Trash2, Filter, Search,
   AlertCircle, Info, CheckCircle, AlertTriangle, Clock, Users, FileText,
-  MessageCircle, Cake, UserPlus
+  MessageCircle, Cake, UserPlus, Megaphone, Send
 } from 'lucide-react';
 import { useAuth } from '../store/AuthContext';
 import { notificationsAPI } from '../services/api';
 import { supabase } from '../services/supabaseClient';
+import notificationService from '../services/notificationService';
 import toast from 'react-hot-toast';
 
 // Notification Type Icons
@@ -27,7 +28,9 @@ const NotificationIcon = ({ type }) => {
     reminder: Clock,
     chat: MessageCircle,
     birthday: Cake,
-    welcome: UserPlus
+    welcome: UserPlus,
+    announcement: Megaphone,
+    milestone: CheckCircle
   };
   const colors = {
     task: 'text-blue-500 bg-blue-100 dark:bg-blue-900/30',
@@ -39,7 +42,9 @@ const NotificationIcon = ({ type }) => {
     reminder: 'text-orange-500 bg-orange-100 dark:bg-orange-900/30',
     chat: 'text-guardian-500 bg-guardian-100 dark:bg-guardian-900/30',
     birthday: 'text-pink-500 bg-pink-100 dark:bg-pink-900/30',
-    welcome: 'text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30'
+    welcome: 'text-emerald-500 bg-emerald-100 dark:bg-emerald-900/30',
+    announcement: 'text-indigo-500 bg-indigo-100 dark:bg-indigo-900/30',
+    milestone: 'text-amber-500 bg-amber-100 dark:bg-amber-900/30'
   };
   const Icon = icons[type] || icons.info;
   return (
@@ -56,6 +61,38 @@ function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [announcementUrgent, setAnnouncementUrgent] = useState(false);
+  const [sendingAnnouncement, setSendingAnnouncement] = useState(false);
+
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  const handleSendAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+      toast.error('Please fill in both title and message');
+      return;
+    }
+    setSendingAnnouncement(true);
+    try {
+      await notificationService.sendAdminAnnouncement(
+        announcementTitle.trim(),
+        announcementMessage.trim(),
+        announcementUrgent
+      );
+      toast.success('Announcement sent to all employees');
+      setShowAnnouncement(false);
+      setAnnouncementTitle('');
+      setAnnouncementMessage('');
+      setAnnouncementUrgent(false);
+    } catch (error) {
+      console.error('Send announcement error:', error);
+      toast.error('Failed to send announcement');
+    } finally {
+      setSendingAnnouncement(false);
+    }
+  };
 
   useEffect(() => {
     fetchNotifications();
@@ -234,6 +271,12 @@ function NotificationsPage() {
             </select>
           </div>
           <div className="flex gap-2">
+            {isAdmin && (
+              <button onClick={() => setShowAnnouncement(true)} className="btn btn-primary text-sm">
+                <Megaphone className="w-4 h-4 mr-2" />
+                Send Announcement
+              </button>
+            )}
             {unreadCount > 0 && (
               <button onClick={markAllAsRead} className="btn btn-ghost text-sm">
                 <CheckCheck className="w-4 h-4 mr-2" />
@@ -310,6 +353,72 @@ function NotificationsPage() {
           )}
         </div>
       </div>
+      {/* Announcement Modal */}
+      {showAnnouncement && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Megaphone className="w-5 h-5 text-indigo-500" />
+                Send Announcement
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">This will notify all employees</p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Title</label>
+                <input
+                  type="text"
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  placeholder="Announcement title..."
+                  className="input w-full"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message</label>
+                <textarea
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  placeholder="Write your announcement..."
+                  rows={4}
+                  className="input w-full resize-none"
+                />
+              </div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={announcementUrgent}
+                  onChange={(e) => setAnnouncementUrgent(e.target.checked)}
+                  className="w-4 h-4 text-red-600 rounded border-gray-300 focus:ring-red-500"
+                />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  Mark as urgent (highlighted for employees)
+                </span>
+              </label>
+            </div>
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+              <button
+                onClick={() => { setShowAnnouncement(false); setAnnouncementTitle(''); setAnnouncementMessage(''); setAnnouncementUrgent(false); }}
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSendAnnouncement}
+                disabled={sendingAnnouncement}
+                className="btn btn-primary"
+              >
+                {sendingAnnouncement ? (
+                  <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" /> Sending...</>
+                ) : (
+                  <><Send className="w-4 h-4 mr-2" /> Send to All</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
