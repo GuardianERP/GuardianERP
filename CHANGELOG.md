@@ -5,6 +5,18 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.8] - 2025-06-24
+
+### Added
+- **CRM Employee Column** — Replaced State (St) column with Employee column showing the assigned employee name with avatar initials
+- **CRM Filters** — Added filter panel with Employee, Category, Status, and Call Status dropdown filters with clear-all button
+- **Real-time Notification Subscription** — All users now receive instant popup notifications with sound for meeting invites, task assignments, and other events
+- **Notification Sound** — All system notifications (meeting reminders, invites, alerts) now play a chime sound via Web Audio API
+
+### Changed
+- **Meetings Sorting** — Meetings list now shows nearest upcoming meetings first, with past meetings sorted most-recent-last
+- **Version Display** — Fixed CURRENT_VERSION constant to 2.6.8 (was showing 2.6.5)
+
 ## [2.6.7] - 2026-02-15
 
 ### Added

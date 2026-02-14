@@ -48,6 +48,7 @@ import useSilentMonitoring from './hooks/useSilentMonitoring';
 import useSilentCameraMonitoring from './hooks/useSilentCameraMonitoring';
 import { usePresenceInit } from './hooks/usePresence';
 import notificationService from './services/notificationService';
+import soundService from './services/soundService';
 import OverlayNotification from './components/OverlayNotification';
 
 // Protected Route wrapper
@@ -225,10 +226,27 @@ function AppWithMonitoring() {
       
       // Start polling for upcoming meetings, tasks, and reminders
       const stopPolling = notificationService.startNotificationPolling(user.id, handleOverlayNotification);
-      
+
+      // Subscribe to real-time notifications (meeting invites, task assignments, etc.)
+      const notifChannel = notificationService.subscribeToNotifications(user.id, (notification) => {
+        // Play notification sound
+        try { soundService.playMessageNotification(); } catch (e) { /* ignore */ }
+
+        // Show overlay notification popup
+        if (notification?.title && notification?.message) {
+          handleOverlayNotification({
+            type: notification.type || 'info',
+            title: notification.title,
+            message: notification.message,
+            urgent: notification.type === 'meeting'
+          });
+        }
+      });
+
       // Cleanup on unmount
       return () => {
         stopPolling();
+        notificationService.unsubscribe(notifChannel);
       };
     }
   }, [isLoggedIn, user, handleOverlayNotification]);

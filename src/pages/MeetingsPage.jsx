@@ -1139,6 +1139,17 @@ function MeetingsPage() {
     const description = meeting.description || '';
     return title.toLowerCase().includes(search.toLowerCase()) ||
            description.toLowerCase().includes(search.toLowerCase());
+  }).sort((a, b) => {
+    // Sort: upcoming meetings nearest-first, then past meetings most-recent-first
+    const now = new Date();
+    const aTime = new Date(a.start_time);
+    const bTime = new Date(b.start_time);
+    const aUpcoming = aTime >= now;
+    const bUpcoming = bTime >= now;
+    if (aUpcoming && !bUpcoming) return -1;
+    if (!aUpcoming && bUpcoming) return 1;
+    if (aUpcoming && bUpcoming) return aTime - bTime; // nearest upcoming first
+    return bTime - aTime; // most recent past first
   });
 
   // Stats
@@ -1312,7 +1323,6 @@ function MeetingsPage() {
         <div className="grid gap-4">
           {filteredMeetings.length > 0 ? (
             filteredMeetings
-              .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
               .map((meeting) => (
                 <MeetingCard
                   key={meeting.id}

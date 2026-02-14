@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabaseClient';
+import soundService from './soundService';
 
 // Check if we're in Electron environment
 const isElectron = typeof window !== 'undefined' && window.electronAPI;
@@ -14,6 +15,9 @@ const notificationTimers = new Map();
 
 // Standalone function for showing native notifications (used throughout the service)
 function showNativeNotification(title, message, options = {}) {
+  // Play notification sound
+  try { soundService.playMessageNotification(); } catch (e) { /* ignore audio errors */ }
+
   // Try Electron notification first
   if (isElectron && window.electronAPI?.notifications?.show) {
     window.electronAPI.notifications.show(title, message, null);
