@@ -91,10 +91,10 @@ function QuickAction({ title, description, icon: Icon, onClick, color }) {
 // Activity Item
 function ActivityItem({ title, description, time, type }) {
   const colors = {
-    task: 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400',
-    attendance: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400',
-    leave: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400',
-    expense: 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400',
+    task: 'bg-blue-200 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    attendance: 'bg-green-200 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    leave: 'bg-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+    expense: 'bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
   };
 
   return (

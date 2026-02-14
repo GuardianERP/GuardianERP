@@ -118,11 +118,11 @@ const EditableCell = ({ getValue, row, column, table }) => {
 // Status Badge Component
 const StatusBadge = ({ status }) => {
   const statusColors = {
-    'Decision Pending': 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    'Meeting Scheduled': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-    'Follow Up': 'bg-purple-500/20 text-purple-400 border-purple-500/30',
-    'Not Interested': 'bg-red-500/20 text-red-400 border-red-500/30',
-    'Client Landed': 'bg-green-500/20 text-green-400 border-green-500/30',
+    'Decision Pending': 'bg-yellow-200 text-yellow-700 border-yellow-400 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30',
+    'Meeting Scheduled': 'bg-blue-200 text-blue-700 border-blue-400 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-500/30',
+    'Follow Up': 'bg-purple-200 text-purple-700 border-purple-400 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-500/30',
+    'Not Interested': 'bg-red-200 text-red-700 border-red-400 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30',
+    'Client Landed': 'bg-green-200 text-green-700 border-green-400 dark:bg-green-500/20 dark:text-green-400 dark:border-green-500/30',
   };
   return (
     <span className={`px-2 py-1 text-xs rounded-full border ${statusColors[status] || 'bg-gray-500/20 text-gray-400 border-gray-500/30'}`}>

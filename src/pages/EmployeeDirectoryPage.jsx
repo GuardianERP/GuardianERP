@@ -122,20 +122,20 @@ function EmployeeDirectoryPage() {
     if (days >= 1095) return { bg: 'bg-gradient-to-r from-purple-500 to-indigo-500', text: 'text-white', icon: '⭐' };
     if (days >= 730) return { bg: 'bg-gradient-to-r from-blue-500 to-cyan-500', text: 'text-white', icon: '💎' };
     if (days >= 365) return { bg: 'bg-gradient-to-r from-green-500 to-emerald-500', text: 'text-white', icon: '🌟' };
-    if (days >= 180) return { bg: 'bg-teal-100 dark:bg-teal-900/40', text: 'text-teal-700 dark:text-teal-300', icon: '✨' };
-    if (days >= 90) return { bg: 'bg-gray-100 dark:bg-gray-700', text: 'text-gray-600 dark:text-gray-300', icon: '' };
-    return { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-300', icon: '🆕' };
+    if (days >= 180) return { bg: 'bg-teal-200 dark:bg-teal-900/40', text: 'text-teal-800 dark:text-teal-300', icon: '✨' };
+    if (days >= 90) return { bg: 'bg-gray-200 dark:bg-gray-700', text: 'text-gray-700 dark:text-gray-300', icon: '' };
+    return { bg: 'bg-blue-200 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-300', icon: '🆕' };
   };
 
-  // Light background colors for cards based on seniority
+  // Light background colors for cards based on seniority - vibrant colors for light mode
   const getSeniorityCardBg = (days) => {
-    if (days >= 1825) return 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-amber-200 dark:border-amber-800';
-    if (days >= 1095) return 'bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-200 dark:border-purple-800';
-    if (days >= 730) return 'bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800';
-    if (days >= 365) return 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800';
-    if (days >= 180) return 'bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 border-teal-200 dark:border-teal-800';
-    if (days >= 90) return 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
-    return 'bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 border-sky-200 dark:border-sky-800';
+    if (days >= 1825) return 'bg-gradient-to-br from-amber-100 to-yellow-100 dark:from-amber-900/20 dark:to-yellow-900/20 border-amber-300 dark:border-amber-800';
+    if (days >= 1095) return 'bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-300 dark:border-purple-800';
+    if (days >= 730) return 'bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-300 dark:border-blue-800';
+    if (days >= 365) return 'bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/20 dark:to-emerald-900/20 border-green-300 dark:border-green-800';
+    if (days >= 180) return 'bg-gradient-to-br from-teal-100 to-cyan-100 dark:from-teal-900/20 dark:to-cyan-900/20 border-teal-300 dark:border-teal-800';
+    if (days >= 90) return 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700';
+    return 'bg-gradient-to-br from-sky-100 to-blue-100 dark:from-sky-900/20 dark:to-blue-900/20 border-sky-300 dark:border-sky-800';
   };
 
   const departmentColors = {

@@ -42,9 +42,9 @@ const RichTextEditor = ({ value, onChange, placeholder }) => {
 // Priority Badge Component
 const PriorityBadge = ({ priority }) => {
   const colors = {
-    High: 'bg-red-500/20 text-red-400 border-red-500/30',
-    Medium: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
-    Low: 'bg-green-500/20 text-green-400 border-green-500/30',
+    High: 'bg-red-200 text-red-700 border-red-300 dark:bg-red-500/20 dark:text-red-400 dark:border-red-500/30',
+    Medium: 'bg-yellow-200 text-yellow-700 border-yellow-300 dark:bg-yellow-500/20 dark:text-yellow-400 dark:border-yellow-500/30',
+    Low: 'bg-green-200 text-green-700 border-green-300 dark:bg-green-500/20 dark:text-green-400 dark:border-green-500/30',
   };
   return (
     <span className={`px-2 py-0.5 text-xs rounded-full border ${colors[priority] || colors.Medium}`}>
@@ -56,15 +56,15 @@ const PriorityBadge = ({ priority }) => {
 // Type Badge Component
 const TypeBadge = ({ type }) => {
   const colors = {
-    'First Email': 'bg-blue-500/20 text-blue-400',
-    '1st Follow-up': 'bg-purple-500/20 text-purple-400',
-    '2nd Follow-up': 'bg-indigo-500/20 text-indigo-400',
-    '3rd Follow-up': 'bg-violet-500/20 text-violet-400',
-    'Proposal': 'bg-emerald-500/20 text-emerald-400',
-    'Final Notice': 'bg-orange-500/20 text-orange-400',
+    'First Email': 'bg-blue-200 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400',
+    '1st Follow-up': 'bg-purple-200 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400',
+    '2nd Follow-up': 'bg-indigo-200 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-400',
+    '3rd Follow-up': 'bg-violet-200 text-violet-700 dark:bg-violet-500/20 dark:text-violet-400',
+    'Proposal': 'bg-emerald-200 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-400',
+    'Final Notice': 'bg-orange-200 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400',
   };
   return (
-    <span className={`px-2 py-0.5 text-xs rounded-full ${colors[type] || 'bg-gray-500/20 text-gray-400'}`}>
+    <span className={`px-2 py-0.5 text-xs rounded-full ${colors[type] || 'bg-gray-200 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400'}`}>
       {type}
     </span>
   );
