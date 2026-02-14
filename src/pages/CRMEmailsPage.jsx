@@ -85,7 +85,7 @@ const TemplateCard = ({ template, stats, onEdit, onDelete, onCopy, canEdit }) =>
   const templateStats = stats?.find(s => s.templateId === template.id);
   
   return (
-    <div className="bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600 transition-all group shadow-sm">
+    <div className="bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600 transition-all group shadow-md dark:shadow-sm hover:shadow-lg">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <TypeBadge type={template.type} />
@@ -143,7 +143,7 @@ const TemplateSetCard = ({ set, stats, onSelect, onEdit, onDelete, canEdit, isSe
 
   return (
     <div 
-      className={`bg-white dark:bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer shadow-sm ${isSelected ? 'border-pink-500 ring-1 ring-pink-500/50' : 'border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'}`}
+      className={`bg-white dark:bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer shadow-md dark:shadow-sm hover:shadow-lg ${isSelected ? 'border-pink-500 ring-1 ring-pink-500/50' : 'border-gray-200 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'}`}
       onClick={() => onSelect(set)}
     >
       <div className="flex items-start justify-between mb-2">

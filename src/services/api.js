@@ -3280,7 +3280,7 @@ export const teamsAPI = {
         try {
           const { data: members } = await supabase
             .from('team_members')
-            .select('*, employees (id, first_name, last_name, department, designation, profile_picture)')
+            .select('*, employees (id, first_name, last_name, department, designation, avatar_url)')
             .eq('team_id', team.id);
           return { ...team, team_members: members || [] };
         } catch {
@@ -3301,7 +3301,7 @@ export const teamsAPI = {
     try {
       const { data, error } = await supabase
         .from('teams')
-        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, designation, profile_picture, user_id))`)
+        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, designation, avatar_url, user_id))`)
         .eq('id', id)
         .single();
       

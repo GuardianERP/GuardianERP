@@ -127,22 +127,51 @@ function EmployeeDirectoryPage() {
     return { bg: 'bg-blue-50 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-300', icon: '🆕' };
   };
 
+  // Light background colors for cards based on seniority
+  const getSeniorityCardBg = (days) => {
+    if (days >= 1825) return 'bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-amber-200 dark:border-amber-800';
+    if (days >= 1095) return 'bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border-purple-200 dark:border-purple-800';
+    if (days >= 730) return 'bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 border-blue-200 dark:border-blue-800';
+    if (days >= 365) return 'bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border-green-200 dark:border-green-800';
+    if (days >= 180) return 'bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 border-teal-200 dark:border-teal-800';
+    if (days >= 90) return 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700';
+    return 'bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 border-sky-200 dark:border-sky-800';
+  };
+
   const departmentColors = {
-    management: 'from-slate-600 to-slate-800',
-    operations: 'from-emerald-500 to-green-600',
-    marketing: 'from-fuchsia-500 to-purple-600',
+    management: 'from-violet-600 to-purple-700',
+    operations: 'from-emerald-500 to-teal-600',
+    marketing: 'from-pink-500 to-rose-600',
     technology: 'from-cyan-500 to-blue-600',
-    hr: 'from-orange-500 to-red-500',
-    finance: 'from-amber-500 to-yellow-600',
-    unassigned: 'from-gray-400 to-gray-600',
+    hr: 'from-orange-500 to-amber-600',
+    finance: 'from-lime-500 to-green-600',
+    unassigned: 'from-slate-400 to-slate-600',
+  };
+
+  const avatarGradients = [
+    'from-violet-500 to-purple-600',
+    'from-pink-500 to-rose-600',
+    'from-cyan-500 to-blue-600',
+    'from-emerald-500 to-teal-600',
+    'from-orange-500 to-amber-600',
+    'from-fuchsia-500 to-pink-600',
+    'from-indigo-500 to-violet-600',
+    'from-teal-500 to-cyan-600',
+  ];
+
+  const getAvatarGradient = (emp) => {
+    const hash = (emp.first_name?.charCodeAt(0) || 0) + (emp.last_name?.charCodeAt(0) || 0);
+    return avatarGradients[hash % avatarGradients.length];
   };
 
   const EmployeeCard = ({ emp }) => {
     const seniority = getSeniority(emp.joining_date);
     const badge = getSeniorityBadge(seniority);
+    const gradient = getAvatarGradient(emp);
+    const cardBg = getSeniorityCardBg(seniority);
     
     return (
-      <div className="group relative bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 hover:shadow-xl hover:shadow-blue-500/10 hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300">
+      <div className={`group relative rounded-2xl border p-5 hover:shadow-xl hover:shadow-purple-500/10 transition-all duration-300 ${cardBg}`}>
         {seniority >= 365 && (
           <div className="absolute -top-2 -right-2 z-10">
             <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full shadow-md ${badge.bg} ${badge.text}`}>
@@ -153,10 +182,10 @@ function EmployeeDirectoryPage() {
         
         <div className="flex items-start gap-4">
           <div className="relative flex-shrink-0">
-            {emp.profile_picture ? (
-              <img src={emp.profile_picture} alt="" className="w-14 h-14 rounded-xl object-cover ring-2 ring-gray-100 dark:ring-gray-700" />
+            {emp.avatar_url ? (
+              <img src={emp.avatar_url} alt="" className="w-14 h-14 rounded-xl object-cover ring-2 ring-white/60 dark:ring-gray-700/50 shadow-lg" />
             ) : (
-              <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-lg font-bold shadow-lg">
+              <div className={`w-14 h-14 rounded-xl bg-gradient-to-br ${gradient} flex items-center justify-center text-white text-lg font-bold shadow-lg ring-2 ring-white/20`}>
                 {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
               </div>
             )}
@@ -167,7 +196,7 @@ function EmployeeDirectoryPage() {
               {emp.first_name} {emp.last_name}
             </h3>
             <p className="text-sm text-blue-600 dark:text-blue-400 font-medium truncate">
-              {getPositionLabel(emp.position) || emp.position || 'No Position'}
+              {getPositionLabel(emp.designation) || emp.designation || 'No Position'}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {getDepartmentLabel(emp.department) || 'Unassigned'}
@@ -331,10 +360,10 @@ function EmployeeDirectoryPage() {
                     <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          {emp.profile_picture ? (
-                            <img src={emp.profile_picture} alt="" className="w-9 h-9 rounded-lg object-cover" />
+                          {emp.avatar_url ? (
+                            <img src={emp.avatar_url} alt="" className="w-9 h-9 rounded-lg object-cover shadow-sm" />
                           ) : (
-                            <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                            <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${getAvatarGradient(emp)} flex items-center justify-center text-white text-sm font-medium shadow-sm`}>
                               {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}
                             </div>
                           )}
@@ -342,7 +371,7 @@ function EmployeeDirectoryPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{getDepartmentLabel(emp.department) || '-'}</td>
-                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{getPositionLabel(emp.position) || emp.position || '-'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-300">{getPositionLabel(emp.designation) || emp.designation || '-'}</td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${badge.bg} ${badge.text}`}>
                           {badge.icon} {formatSeniority(seniority)}

@@ -311,6 +311,20 @@ ipcMain.handle('auth:login', async (event, { email, password }) => {
     // Update last login
     database.updateLastLogin(db, user.id);
     
+    // Get linked employee avatar_url
+    let avatarUrl = null;
+    try {
+      const empStmt = db.prepare('SELECT avatar_url FROM employees WHERE user_id = ?');
+      empStmt.bind([user.id]);
+      if (empStmt.step()) {
+        const emp = empStmt.getAsObject();
+        avatarUrl = emp.avatar_url || null;
+      }
+      empStmt.free();
+    } catch (e) {
+      console.log('No linked employee for avatar');
+    }
+    
     return { 
       success: true, 
       data: { 
@@ -320,7 +334,8 @@ ipcMain.handle('auth:login', async (event, { email, password }) => {
           email: user.email, 
           firstName: user.first_name,
           lastName: user.last_name,
-          role: user.role 
+          role: user.role,
+          avatarUrl: avatarUrl
         } 
       } 
     };

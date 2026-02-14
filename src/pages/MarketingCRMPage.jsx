@@ -133,7 +133,7 @@ const StatusBadge = ({ status }) => {
 
 // Analytics Card Component
 const AnalyticsCard = ({ icon: Icon, label, value, trend, color }) => (
-  <div className={`bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm`}>
+  <div className={`bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-md dark:shadow-sm hover:shadow-lg transition-shadow`}>
     <div className="flex items-center justify-between mb-2">
       <div className={`p-2 rounded-lg ${color}`}>
         <Icon className="w-5 h-5" />
@@ -1112,7 +1112,7 @@ const MarketingCRMPage = () => {
 
       {/* Team Leaderboard for Supervisors/CEO */}
       {showAnalytics && teamPerformance && (accessInfo.isCEO || accessInfo.isSupervisor) && (
-        <div className="bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-sm">
+        <div className="bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700/50 shadow-md dark:shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-500 dark:text-blue-400" />
             Team Leaderboard
@@ -1238,7 +1238,7 @@ const MarketingCRMPage = () => {
       </div>
 
       {/* Data Table */}
-      <div className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden shadow-sm">
+      <div className="bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700/50 overflow-hidden shadow-md dark:shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="bg-gray-50 dark:bg-gray-900/50">

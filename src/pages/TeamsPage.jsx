@@ -326,8 +326,8 @@ function TeamsPage() {
                         const isLead = member.employee_id === team.team_lead_id;
                         return (
                           <div key={member.id} className={`flex items-center gap-3 p-3 rounded-xl border ${isLead ? 'border-yellow-300 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
-                            {emp.profile_picture ? (
-                              <img src={emp.profile_picture} alt="" className="w-10 h-10 rounded-full object-cover" />
+                            {emp.avatar_url ? (
+                              <img src={emp.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover" />
                             ) : (
                               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-guardian-400 to-guardian-600 flex items-center justify-center text-white font-medium text-sm">
                                 {(emp.first_name?.[0] || '')}{(emp.last_name?.[0] || '')}

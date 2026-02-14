@@ -164,11 +164,15 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }) {
       {(!collapsed || isMobile) && user && (
         <div className="px-4 py-4 border-b border-gray-800">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-              <span className="text-sm font-semibold">
-                {user.firstName?.[0]}{user.lastName?.[0]}
-              </span>
-            </div>
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover ring-2 ring-purple-500/50 flex-shrink-0" />
+            ) : (
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-semibold">
+                  {user.firstName?.[0]}{user.lastName?.[0]}
+                </span>
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-sm font-medium truncate">
                 {user.firstName} {user.lastName}

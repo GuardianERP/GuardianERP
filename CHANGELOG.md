@@ -5,6 +5,30 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.7] - 2026-02-15
+
+### Added
+- **Employee Directory Seniority Colors** — Cards now have light colored backgrounds based on tenure
+  - Gold/amber for 5+ year veterans
+  - Purple for 3+ years
+  - Blue for 2+ years
+  - Green for 1+ years
+  - Teal for 6+ months
+  - Sky blue for new employees
+- **Profile Picture Display** — Shows real avatar everywhere when set
+  - Header, Sidebar, Directory, Meetings, Teams, Supervision pages
+  - Falls back to colorful initials when no picture set
+  - Avatar colors unique per person based on name
+
+### Fixed
+- **Directory Position Display** — Fixed "No Position" showing (now uses designation field)
+- **Modern Avatar Colors** — Added varied gradient colors for employee avatars across app
+- **Teams Data Sync** — Teams and members now properly save to Supabase cloud database
+
+### Note
+- If teams show empty after update, you need to re-add members through the production app
+- Local dev server uses SQLite, production uses Supabase cloud - data is not shared
+
 ## [2.6.6] - 2026-02-14
 
 ### Added

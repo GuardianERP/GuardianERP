@@ -691,9 +691,13 @@ function AgreementsPage() {
                         onMouseDown={(e) => { e.preventDefault(); selectEmployee(emp); }}
                         className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-3 transition-colors border-b border-gray-100 dark:border-gray-700/30 last:border-0"
                       >
-                        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0">
-                          {emp.first_name?.[0]}{emp.last_name?.[0]}
-                        </div>
+                        {emp.avatar_url ? (
+                          <img src={emp.avatar_url} alt="" className="w-9 h-9 rounded-lg object-cover shadow-sm flex-shrink-0" />
+                        ) : (
+                          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0">
+                            {emp.first_name?.[0]}{emp.last_name?.[0]}
+                          </div>
+                        )}
                         <div className="min-w-0">
                           <p className="text-gray-900 dark:text-white font-medium text-sm truncate">{emp.first_name} {emp.last_name}</p>
                           <p className="text-xs text-gray-500 truncate">{emp.employee_code} &bull; {emp.designation || 'N/A'} &bull; {emp.department || 'N/A'}</p>

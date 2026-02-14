@@ -155,11 +155,15 @@ function Header({ onToggleSidebar, sidebarCollapsed, isMobile }) {
             onClick={() => setShowUserMenu(!showUserMenu)}
             className="flex items-center gap-1 sm:gap-2 p-1 sm:p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
-            <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-              <span className="text-[10px] sm:text-xs font-semibold text-white">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
-              </span>
-            </div>
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" className="w-7 h-7 sm:w-8 sm:h-8 rounded-full object-cover ring-2 ring-purple-200 dark:ring-purple-800" />
+            ) : (
+              <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <span className="text-[10px] sm:text-xs font-semibold text-white">
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </span>
+              </div>
+            )}
             <ChevronDown className={`w-3 h-3 sm:w-4 sm:h-4 text-gray-600 dark:text-gray-300 transition-transform hidden sm:block ${showUserMenu ? 'rotate-180' : ''}`} />
           </button>
 

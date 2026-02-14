@@ -37,7 +37,7 @@ function StatCard({ title, value, change, changeType, icon: Icon, color, onClick
   
   return (
     <div 
-      className="card p-6 hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+      className="card p-6 shadow-md dark:shadow-sm hover:shadow-xl transition-all cursor-pointer overflow-hidden"
       onClick={onClick}
     >
       <div className="flex items-start justify-between">
@@ -71,7 +71,7 @@ function StatCard({ title, value, change, changeType, icon: Icon, color, onClick
 function QuickAction({ title, description, icon: Icon, onClick, color }) {
   return (
     <button 
-      className="card p-4 text-left hover:shadow-lg transition-all w-full group"
+      className="card p-4 text-left shadow-md dark:shadow-sm hover:shadow-xl transition-all w-full group"
       onClick={onClick}
     >
       <div className="flex items-center gap-4">

@@ -201,6 +201,7 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
   };
 
   // Create a peer connection for a remote user
+  // CRITICAL: Works WITHOUT local stream - tracks can be added later
   const createPeerConnection = (remoteUserId, remoteName) => {
     if (peerConnections.current[remoteUserId]) {
       console.log('[WebRTC] Reusing peer connection for', remoteUserId);
@@ -210,13 +211,19 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
     console.log('[WebRTC] Creating peer connection for', remoteUserId, remoteName);
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    // Add local tracks to the connection
+    // Add local tracks if we have them - otherwise they'll be added later
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
         pc.addTrack(track, localStreamRef.current);
       });
+      console.log('[WebRTC] Added local tracks to peer', remoteUserId);
     } else {
-      console.warn('[WebRTC] No local stream when creating PC for', remoteUserId);
+      console.log('[WebRTC] No local stream yet, tracks will be added when available');
+      // Create empty transceivers so the peer knows we may send audio/video
+      pc.addTransceiver('audio', { direction: 'sendrecv' });
+      if (meeting.meeting_type === 'video') {
+        pc.addTransceiver('video', { direction: 'sendrecv' });
+      }
     }
 
     // Handle incoming remote tracks
@@ -248,6 +255,10 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
     // Monitor connection state
     pc.onconnectionstatechange = () => {
       console.log('[WebRTC] Conn state', remoteUserId, ':', pc.connectionState);
+      if (pc.connectionState === 'connected') {
+        // Mark this peer as connected even without video
+        setConnectedPeers(prev => ({ ...prev, [remoteUserId]: remoteName || prev[remoteUserId] || 'Participant' }));
+      }
       if (pc.connectionState === 'failed') {
         // Attempt ICE restart on failure
         console.log('[WebRTC] Connection failed, attempting restart for', remoteUserId);
@@ -389,94 +400,154 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
   };
 
   // ===== Main effect: runs ONCE per meeting =====
+  // CRITICAL FIX: Join channel FIRST, then get media separately
+  // This ensures participants can see each other even without camera/mic access
   useEffect(() => {
     let mounted = true;
     const myId = user?.id;
     if (!myId) return;
 
-    const initCall = async () => {
+    // 1. Join signaling channel IMMEDIATELY (no media dependency)
+    const setupChannel = async () => {
+      console.log('[Call] Setting up signaling channel...');
+      setCallStatus('connecting');
+      
+      const channel = supabase.channel(`meeting-call:${meeting.id}`, {
+        config: { broadcast: { self: false } }
+      });
+
+      // Use ref so the listener always calls latest handler
+      channel.on('broadcast', { event: 'signal' }, ({ payload }) => {
+        handleSignalRef.current?.(payload);
+      });
+
+      // Use presence to track who's in the call - this works WITHOUT media
+      channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const presenceUsers = Object.values(state).flat();
+        console.log('[Presence] Current participants:', presenceUsers.length);
+        
+        // Update connected peers from presence (even without streams)
+        presenceUsers.forEach(p => {
+          if (p.user_id && p.user_id !== myId) {
+            setConnectedPeers(prev => ({ ...prev, [p.user_id]: p.user_name || 'Participant' }));
+          }
+        });
+      });
+
+      channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        console.log('[Presence] Joined:', key, newPresences);
+        newPresences.forEach(p => {
+          if (p.user_id && p.user_id !== myId) {
+            setConnectedPeers(prev => ({ ...prev, [p.user_id]: p.user_name || 'Participant' }));
+            toast.success(`${p.user_name || 'Someone'} joined the meeting`);
+          }
+        });
+      });
+
+      channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        console.log('[Presence] Left:', key);
+        leftPresences.forEach(p => {
+          if (p.user_id && p.user_id !== myId) {
+            cleanupPeer(p.user_id);
+            toast(`${p.user_name || 'A participant'} left the meeting`, { icon: '👋' });
+          }
+        });
+      });
+
+      await channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Channel] Subscribed to meeting channel');
+          callChannelRef.current = channel;
+          setCallStatus('connected');
+
+          // Track presence IMMEDIATELY
+          await channel.track({
+            user_id: myId,
+            user_name: getMyName(),
+            joined_at: new Date().toISOString(),
+            has_media: false, // Will update when we get media
+          });
+
+          // Announce join after brief delay for channel readiness
+          setTimeout(() => {
+            if (!mounted) return;
+            channel.send({
+              type: 'broadcast',
+              event: 'signal',
+              payload: {
+                type: 'join',
+                from: myId,
+                userName: getMyName(),
+              }
+            });
+            console.log('[WebRTC] Broadcasted join');
+          }, 500);
+        }
+      });
+    };
+
+    // 2. Get media SEPARATELY and asynchronously - don't block connection
+    const setupMedia = async () => {
       try {
-        // 1. Get local media
-        const stream = await navigator.mediaDevices.getUserMedia({
+        console.log('[Call] Requesting media access...');
+        const constraints = {
           video: meeting.meeting_type === 'video',
           audio: true,
-        });
-        if (!mounted) { stream.getTracks().forEach(t => t.stop()); return; }
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (!mounted) { 
+          stream.getTracks().forEach(t => t.stop()); 
+          return; 
+        }
 
+        console.log('[Call] Media access granted');
         localStreamRef.current = stream;
         setLocalStream(stream);
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-        setCallStatus('connected');
 
-        // 2. Set up Supabase Broadcast channel for signaling
-        const channel = supabase.channel(`meeting-call:${meeting.id}`, {
-          config: { broadcast: { self: false } }
-        });
+        // Update presence to show we have media
+        if (callChannelRef.current) {
+          await callChannelRef.current.track({
+            user_id: myId,
+            user_name: getMyName(),
+            joined_at: new Date().toISOString(),
+            has_media: true,
+          });
+        }
 
-        // Use ref so the listener always calls latest handler
-        channel.on('broadcast', { event: 'signal' }, ({ payload }) => {
-          handleSignalRef.current?.(payload);
-        });
-
-        // Use presence to track who's in the call
-        channel.on('presence', { event: 'sync' }, () => {
-          const state = channel.presenceState();
-          console.log('[Presence] Current participants:', Object.keys(state));
-        });
-
-        channel.on('presence', { event: 'join' }, ({ key, newPresences }) => {
-          console.log('[Presence] Joined:', key, newPresences);
-        });
-
-        channel.on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
-          console.log('[Presence] Left:', key);
-          // Clean up peer connection for the user who left
-          leftPresences.forEach(p => {
-            if (p.user_id && p.user_id !== myId) {
-              cleanupPeer(p.user_id);
+        // Add tracks to any existing peer connections
+        Object.entries(peerConnections.current).forEach(([peerId, pc]) => {
+          stream.getTracks().forEach(track => {
+            // Check if track is already added
+            const senders = pc.getSenders();
+            const hasTrack = senders.some(s => s.track?.kind === track.kind);
+            if (!hasTrack) {
+              pc.addTrack(track, stream);
+              console.log('[WebRTC] Added', track.kind, 'track to peer', peerId);
             }
           });
         });
 
-        await channel.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            console.log('[Channel] Subscribed to meeting channel');
-            callChannelRef.current = channel;
-
-            // Track presence
-            await channel.track({
-              user_id: myId,
-              user_name: getMyName(),
-              joined_at: new Date().toISOString(),
-            });
-
-            // Announce join after brief delay for channel readiness
-            setTimeout(() => {
-              if (!mounted) return;
-              channel.send({
-                type: 'broadcast',
-                event: 'signal',
-                payload: {
-                  type: 'join',
-                  from: myId,
-                  userName: getMyName(),
-                }
-              });
-              console.log('[WebRTC] Broadcasted join');
-            }, 800);
-          }
-        });
-
       } catch (error) {
-        console.error('[Call] Failed to init:', error);
+        console.warn('[Call] Media access denied:', error.message);
         if (mounted) {
-          toast.error('Could not access camera/microphone. Check permissions.');
-          setCallStatus('error');
+          // Don't error out - meeting still works for presence/text
+          toast('Camera/microphone not available. You can still see other participants.', { icon: '📷' });
+          setMicOn(false);
+          setVideoOn(false);
         }
       }
     };
 
-    initCall();
+    // Start both in parallel - channel first, then media
+    setupChannel().then(() => {
+      // Small delay before requesting media to ensure channel is ready
+      setTimeout(() => {
+        if (mounted) setupMedia();
+      }, 300);
+    });
 
     return () => {
       mounted = false;
@@ -521,22 +592,70 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
     });
   }, [remoteStreams]);
 
-  const toggleMic = () => {
+  const toggleMic = async () => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
       if (audioTrack) {
         audioTrack.enabled = !audioTrack.enabled;
         setMicOn(audioTrack.enabled);
       }
+    } else {
+      // Try to get audio if we don't have it
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        if (localStreamRef.current) {
+          // Add audio track to existing stream
+          stream.getAudioTracks().forEach(track => {
+            localStreamRef.current.addTrack(track);
+          });
+        } else {
+          localStreamRef.current = stream;
+          setLocalStream(stream);
+        }
+        setMicOn(true);
+        // Add to peer connections
+        Object.values(peerConnections.current).forEach(pc => {
+          stream.getAudioTracks().forEach(track => {
+            pc.addTrack(track, localStreamRef.current);
+          });
+        });
+        toast.success('Microphone enabled');
+      } catch (error) {
+        toast.error('Could not access microphone');
+      }
     }
   };
 
-  const toggleVideo = () => {
+  const toggleVideo = async () => {
     if (localStream) {
       const videoTrack = localStream.getVideoTracks()[0];
       if (videoTrack) {
         videoTrack.enabled = !videoTrack.enabled;
         setVideoOn(videoTrack.enabled);
+      }
+    } else {
+      // Try to get video if we don't have it
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        if (localStreamRef.current) {
+          stream.getVideoTracks().forEach(track => {
+            localStreamRef.current.addTrack(track);
+          });
+        } else {
+          localStreamRef.current = stream;
+          setLocalStream(stream);
+        }
+        if (localVideoRef.current) localVideoRef.current.srcObject = localStreamRef.current;
+        setVideoOn(true);
+        // Add to peer connections
+        Object.values(peerConnections.current).forEach(pc => {
+          stream.getVideoTracks().forEach(track => {
+            pc.addTrack(track, localStreamRef.current);
+          });
+        });
+        toast.success('Camera enabled');
+      } catch (error) {
+        toast.error('Could not access camera');
       }
     }
   };
@@ -639,13 +758,22 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
         <div>
           <h2 className="text-xl font-semibold text-white">{meeting.title}</h2>
           <div className="flex items-center gap-2 mt-1">
-            <div className={`w-2 h-2 rounded-full ${callStatus === 'connected' ? 'bg-green-400' : callStatus === 'error' ? 'bg-red-400' : 'bg-yellow-400'} animate-pulse`} />
+            <div className={`w-2 h-2 rounded-full ${
+              callStatus === 'connected' ? 'bg-green-400' : 
+              callStatus === 'error' ? 'bg-red-400' : 
+              'bg-yellow-400'
+            } animate-pulse`} />
             <p className="text-sm text-gray-400">
-              {Object.keys(connectedPeers).length + 1} in call
+              {callStatus === 'connecting' ? 'Connecting...' : 
+               callStatus === 'error' ? 'Connection error' :
+               `${Object.keys(connectedPeers).length + 1} in meeting`}
               {Object.keys(connectedPeers).length > 0 && (
-                <span className="text-gray-500"> — {Object.values(connectedPeers).join(', ')}</span>
+                <span className="text-gray-500"> — {Object.values(connectedPeers).slice(0, 3).join(', ')}{Object.keys(connectedPeers).length > 3 ? ` +${Object.keys(connectedPeers).length - 3} more` : ''}</span>
               )}
             </p>
+            {!localStream && callStatus === 'connected' && (
+              <span className="text-xs text-yellow-400 ml-2">(No camera/mic)</span>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -677,9 +805,9 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
             autoPlay
             playsInline
             muted
-            className={`w-full h-full object-cover ${!videoOn ? 'hidden' : ''}`}
+            className={`w-full h-full object-cover ${!videoOn || !localStream ? 'hidden' : ''}`}
           />
-          {!videoOn && (
+          {(!videoOn || !localStream) && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-guardian-400 to-guardian-600 flex items-center justify-center text-3xl font-bold text-white">
                 {user?.firstName?.[0]}{user?.lastName?.[0]}
@@ -687,7 +815,7 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
             </div>
           )}
           <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm">
-            You {screenSharing && '(sharing screen)'}
+            You {screenSharing && '(sharing screen)'} {!localStream && '(no camera)'}
           </div>
           {!micOn && (
             <div className="absolute bottom-2 right-2 p-1 bg-red-600 rounded-full">
@@ -702,7 +830,7 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
           const name = emp ? `${emp.first_name} ${emp.last_name}` : (connectedPeers[peerId] || 'Participant');
           const hasVideo = stream.getVideoTracks().some(t => t.enabled && !t.muted);
           return (
-            <div key={peerId} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video">
+            <div key={peerId} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video ring-2 ring-green-500">
               <video
                 ref={el => { remoteVideoRefs.current[peerId] = el; }}
                 autoPlay
@@ -716,28 +844,54 @@ function VideoCallOverlay({ meeting, onEndCall, participants, allEmployees }) {
                   </div>
                 </div>
               )}
-              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm">
+              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-green-400"></span>
                 {name}
               </div>
             </div>
           );
         })}
 
+        {/* Connected peers without video streams yet (presence-only) */}
+        {Object.entries(connectedPeers)
+          .filter(([peerId]) => peerId !== user?.id && !remoteStreams[peerId])
+          .map(([peerId, peerName]) => {
+            const emp = allEmployees.find(e => e.user_id === peerId);
+            const name = emp ? `${emp.first_name} ${emp.last_name}` : peerName;
+            return (
+              <div key={peerId} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video ring-2 ring-yellow-500">
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-yellow-500 to-orange-600 flex items-center justify-center text-3xl font-bold text-white mx-auto mb-2">
+                      {name[0]}
+                    </div>
+                    <p className="text-yellow-400 text-xs">Connected (no video)</p>
+                  </div>
+                </div>
+                <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-yellow-400"></span>
+                  {name}
+                </div>
+              </div>
+            );
+        })}
+
         {/* Participants not yet connected (from meeting roster) */}
-        {participants.filter(p => p.user_id !== user?.id && !remoteStreams[p.user_id]).map((participant) => {
+        {participants.filter(p => p.user_id !== user?.id && !remoteStreams[p.user_id] && !connectedPeers[p.user_id]).map((participant) => {
           const emp = allEmployees.find(e => e.user_id === participant.user_id);
           const name = emp ? `${emp.first_name} ${emp.last_name}` : 'Participant';
           return (
-            <div key={participant.user_id} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video">
+            <div key={participant.user_id} className="relative bg-gray-800 rounded-xl overflow-hidden aspect-video opacity-50">
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-500 to-gray-600 flex items-center justify-center text-3xl font-bold text-white mx-auto mb-2">
                     {name[0]}
                   </div>
-                  <p className="text-gray-400 text-xs">Not connected</p>
+                  <p className="text-gray-400 text-xs">Not joined yet</p>
                 </div>
               </div>
-              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm">
+              <div className="absolute bottom-2 left-2 px-2 py-1 bg-black/50 rounded text-white text-sm flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-gray-500"></span>
                 {name}
               </div>
             </div>
