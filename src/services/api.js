@@ -3280,7 +3280,7 @@ export const teamsAPI = {
         try {
           const { data: members } = await supabase
             .from('team_members')
-            .select('*, employees (id, first_name, last_name, department, position, profile_picture)')
+            .select('*, employees (id, first_name, last_name, department, designation, profile_picture)')
             .eq('team_id', team.id);
           return { ...team, team_members: members || [] };
         } catch {
@@ -3301,7 +3301,7 @@ export const teamsAPI = {
     try {
       const { data, error } = await supabase
         .from('teams')
-        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, position, profile_picture, user_id))`)
+        .select(`*, team_members (id, employee_id, role, employees (id, first_name, last_name, department, designation, profile_picture, user_id))`)
         .eq('id', id)
         .single();
       
@@ -3381,7 +3381,7 @@ export const teamsAPI = {
         employee_id: employeeId,
         role,
       })
-      .select(`*, employees (id, first_name, last_name, department, position)`)
+      .select(`*, employees (id, first_name, last_name, department, designation)`)
       .single();
     
     if (error) handleError(error, 'add team member');
@@ -3570,6 +3570,349 @@ export const rolesAPI = {
 };
 
 // ============================================
+// Marketing CRM API
+// ============================================
+
+const checkMarketingAccess = async () => {
+  const user = getCurrentUser();
+  if (!user) throw new Error('Authentication required');
+  
+  // Super admin has full CEO access
+  if (user.role === 'super_admin') return { hasAccess: true, isCEO: true, isSupervisor: true, employeeId: user.employeeId };
+  
+  // Admin and manager roles have supervisor-level access regardless of department
+  if (user.role === 'admin' || user.role === 'manager') {
+    return { hasAccess: true, isCEO: false, isSupervisor: true, employeeId: user.employeeId };
+  }
+  
+  // For other roles, check employee department
+  const { data: employee } = await supabase.from('employees').select('id, department, role, designation').eq('user_id', user.id).single();
+  if (!employee) throw new Error('Employee record not found');
+  
+  // Allow Marketing department members
+  if (employee.department === 'Marketing') {
+    const isSupervisor = employee.role === 'admin' || employee.role === 'manager' || 
+      (employee.designation && (employee.designation.toLowerCase().includes('supervisor') || employee.designation.toLowerCase().includes('manager')));
+    return { hasAccess: true, isCEO: false, isSupervisor, employeeId: employee.id };
+  }
+  
+  throw new Error('Access denied. Admin, Manager, or Marketing department only.');
+};
+
+export const marketingCampaignsAPI = {
+  getAll: async () => {
+    checkSupabase();
+    await checkMarketingAccess();
+    const { data, error } = await supabase.from('marketing_campaigns').select('*').eq('status', 'active').order('created_at', { ascending: false });
+    if (error) handleError(error, 'fetch campaigns');
+    return data;
+  },
+  create: async (campaignData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Only CEO or Supervisors can create campaigns');
+    const { data, error } = await supabase.from('marketing_campaigns').insert({ name: campaignData.name, description: campaignData.description, status: 'active', created_by: access.employeeId }).select().single();
+    if (error) handleError(error, 'create campaign');
+    return data;
+  },
+  update: async (id, campaignData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Only CEO or Supervisors can update campaigns');
+    const { data, error } = await supabase.from('marketing_campaigns').update({ name: campaignData.name, description: campaignData.description, updated_at: new Date().toISOString() }).eq('id', id).select().single();
+    if (error) handleError(error, 'update campaign');
+    return data;
+  },
+  delete: async (id) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Only CEO or Supervisors can delete campaigns');
+    const { error } = await supabase.from('marketing_campaigns').update({ status: 'inactive' }).eq('id', id);
+    if (error) handleError(error, 'delete campaign');
+    return { success: true };
+  },
+};
+
+export const marketingLeadsAPI = {
+  getAll: async (filters = {}) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    let query = supabase.from('marketing_leads').select('*, assigned_employee:employees!marketing_leads_assigned_to_fkey(id, first_name, last_name, email), campaign:marketing_campaigns(id, name)').order('created_at', { ascending: false });
+    if (filters.campaignId) query = query.eq('campaign_id', filters.campaignId);
+    if (!access.isCEO && !access.isSupervisor) query = query.eq('assigned_to', access.employeeId);
+    else if (filters.employeeId) query = query.eq('assigned_to', filters.employeeId);
+    if (filters.status) query = query.eq('overall_status', filters.status);
+    if (filters.search) query = query.or(`practice_name.ilike.%${filters.search}%`);
+    const { data, error } = await query;
+    if (error) handleError(error, 'fetch leads');
+    return data;
+  },
+  create: async (leadData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data, error } = await supabase.from('marketing_leads').insert({ ...leadData, assigned_to: leadData.assigned_to || access.employeeId, assigned_date: leadData.assigned_date || new Date().toISOString().split('T')[0], created_by: access.employeeId }).select().single();
+    if (error) handleError(error, 'create lead');
+    return data;
+  },
+  update: async (id, leadData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data: existingLead } = await supabase.from('marketing_leads').select('assigned_to').eq('id', id).single();
+    if (!access.isCEO && !access.isSupervisor && existingLead?.assigned_to !== access.employeeId) throw new Error('Access denied');
+    const updateData = { ...leadData, updated_at: new Date().toISOString() };
+    if (!access.isCEO && !access.isSupervisor) { delete updateData.assigned_date; delete updateData.assigned_to; delete updateData.supervisor_remarks; delete updateData.ceo_remarks; }
+    if (!access.isCEO) delete updateData.ceo_remarks;
+    const { data, error } = await supabase.from('marketing_leads').update(updateData).eq('id', id).select().single();
+    if (error) handleError(error, 'update lead');
+    return data;
+  },
+  delete: async (id) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Only CEO or Supervisors can delete');
+    const { error } = await supabase.from('marketing_leads').delete().eq('id', id);
+    if (error) handleError(error, 'delete lead');
+    return { success: true };
+  },
+  bulkCreate: async (leads, campaignId = null) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Only CEO or Supervisors can bulk upload');
+    const uniqueLeads = leads.map(lead => ({ ...lead, campaign_id: campaignId, assigned_date: new Date().toISOString().split('T')[0], overall_status: 'Decision Pending', created_by: access.employeeId }));
+    const { data, error } = await supabase.from('marketing_leads').insert(uniqueLeads).select();
+    if (error) handleError(error, 'bulk create leads');
+    return { success: true, inserted: data.length, data };
+  },
+  transfer: async (leadId, toEmployeeId, reason = '') => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data: lead } = await supabase.from('marketing_leads').select('assigned_to').eq('id', leadId).single();
+    if (!access.isCEO && !access.isSupervisor && lead?.assigned_to !== access.employeeId) throw new Error('Can only transfer own leads');
+    await supabase.from('marketing_lead_transfers').insert({ lead_id: leadId, from_employee_id: lead.assigned_to, to_employee_id: toEmployeeId, transfer_reason: reason, transferred_by: access.employeeId });
+    const { data, error } = await supabase.from('marketing_leads').update({ assigned_to: toEmployeeId, referred_from: lead.assigned_to, referred_at: new Date().toISOString(), referral_notes: reason }).eq('id', leadId).select().single();
+    if (error) handleError(error, 'transfer lead');
+    return data;
+  },
+};
+
+export const marketingAnalyticsAPI = {
+  getAnalytics: async (employeeId = null) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const targetId = (!access.isCEO && !access.isSupervisor) ? access.employeeId : employeeId;
+    let query = supabase.from('marketing_leads').select('id, overall_status, calling_date, follow_up_required, assigned_to');
+    if (targetId) query = query.eq('assigned_to', targetId);
+    const { data } = await query;
+    const today = new Date().toISOString().split('T')[0];
+    const leads = data || [];
+    return { totalLeads: leads.length, callsToday: leads.filter(l => l.calling_date === today).length, meetingsScheduled: leads.filter(l => l.overall_status === 'Meeting Scheduled').length, clientsLanded: leads.filter(l => l.overall_status === 'Client Landed').length, pendingFollowups: leads.filter(l => l.follow_up_required === 'Yes').length, meetingRate: leads.length > 0 ? ((leads.filter(l => l.overall_status === 'Meeting Scheduled').length / leads.length) * 100).toFixed(1) : 0, conversionRate: leads.length > 0 ? ((leads.filter(l => l.overall_status === 'Client Landed').length / leads.length) * 100).toFixed(1) : 0 };
+  },
+  getTeamPerformance: async () => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Only CEO or Supervisors can view team performance');
+    const { data: employees } = await supabase.from('employees').select('id, first_name, last_name').eq('department', 'Marketing').eq('status', 'active');
+    const { data: leads } = await supabase.from('marketing_leads').select('id, assigned_to, overall_status, calling_date');
+    const leaderboard = (employees || []).map(emp => { const empLeads = (leads || []).filter(l => l.assigned_to === emp.id); return { employeeId: emp.id, name: emp.first_name + ' ' + emp.last_name, totalLeads: empLeads.length, clientsLanded: empLeads.filter(l => l.overall_status === 'Client Landed').length, meetingsScheduled: empLeads.filter(l => l.overall_status === 'Meeting Scheduled').length, conversionRate: empLeads.length > 0 ? ((empLeads.filter(l => l.overall_status === 'Client Landed').length / empLeads.length) * 100).toFixed(1) : 0 }; }).sort((a, b) => b.clientsLanded - a.clientsLanded);
+    return { leaderboard, bestPerformer: leaderboard[0], worstPerformer: leaderboard[leaderboard.length - 1], teamAverages: { avgCallsPerDay: 0, conversionRate: leaderboard.length > 0 ? (leaderboard.reduce((s,e) => s + parseFloat(e.conversionRate), 0) / leaderboard.length).toFixed(1) : 0 } };
+  },
+  getMarketingEmployees: async () => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) { const { data } = await supabase.from('employees').select('id, first_name, last_name, email, designation').eq('id', access.employeeId); return data; }
+    const { data, error } = await supabase.from('employees').select('id, first_name, last_name, email, designation').eq('department', 'Marketing').eq('status', 'active').order('first_name');
+    if (error) handleError(error, 'fetch marketing employees');
+    return data;
+  },
+};
+
+// ============================================
+// Email Template Management API
+// ============================================
+
+export const emailTemplateSetsAPI = {
+  getAll: async () => {
+    checkSupabase();
+    await checkMarketingAccess();
+    const { data, error } = await supabase.from('email_template_sets')
+      .select('*, templates:email_templates(*), comments:email_template_comments(*)')
+      .eq('status', 'active')
+      .order('created_at', { ascending: false });
+    if (error) handleError(error, 'fetch template sets');
+    return data;
+  },
+  getById: async (id) => {
+    checkSupabase();
+    await checkMarketingAccess();
+    const { data, error } = await supabase.from('email_template_sets')
+      .select('*, templates:email_templates(*), comments:email_template_comments(*)')
+      .eq('id', id)
+      .single();
+    if (error) handleError(error, 'fetch template set');
+    return data;
+  },
+  create: async (setData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data, error } = await supabase.from('email_template_sets')
+      .insert({ name: setData.name, description: setData.description, status: 'active', is_public: setData.is_public || false, created_by: access.employeeId })
+      .select().single();
+    if (error) handleError(error, 'create template set');
+    return data;
+  },
+  update: async (id, setData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data: existing } = await supabase.from('email_template_sets').select('created_by, is_public').eq('id', id).single();
+    if (!access.isCEO && !access.isSupervisor && existing?.created_by !== access.employeeId && !existing?.is_public) throw new Error('Access denied');
+    const { data, error } = await supabase.from('email_template_sets')
+      .update({ name: setData.name, description: setData.description, is_public: setData.is_public, updated_at: new Date().toISOString() })
+      .eq('id', id).select().single();
+    if (error) handleError(error, 'update template set');
+    return data;
+  },
+  delete: async (id) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data: existing } = await supabase.from('email_template_sets').select('created_by').eq('id', id).single();
+    if (!access.isCEO && !access.isSupervisor && existing?.created_by !== access.employeeId) throw new Error('Access denied');
+    const { error } = await supabase.from('email_template_sets').update({ status: 'inactive' }).eq('id', id);
+    if (error) handleError(error, 'delete template set');
+    return { success: true };
+  },
+  addComment: async (setId, content) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data, error } = await supabase.from('email_template_comments')
+      .insert({ template_set_id: setId, content, employee_id: access.employeeId })
+      .select('*').single();
+    if (error) handleError(error, 'add comment');
+    return data;
+  },
+};
+
+export const emailTemplatesAPI = {
+  getAll: async (setId = null) => {
+    checkSupabase();
+    await checkMarketingAccess();
+    let query = supabase.from('email_templates').select('*, template_set:email_template_sets(id, name)').eq('status', 'active').order('type_order');
+    if (setId) query = query.eq('template_set_id', setId);
+    const { data, error } = await query;
+    if (error) handleError(error, 'fetch templates');
+    return data;
+  },
+  getById: async (id) => {
+    checkSupabase();
+    await checkMarketingAccess();
+    const { data, error } = await supabase.from('email_templates').select('*, template_set:email_template_sets(id, name)').eq('id', id).single();
+    if (error) handleError(error, 'fetch template');
+    return data;
+  },
+  create: async (templateData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const typeOrderMap = { 'First Email': 1, '1st Follow-up': 2, '2nd Follow-up': 3, '3rd Follow-up': 4, 'Proposal': 5, 'Final Notice': 6 };
+    const { data, error } = await supabase.from('email_templates')
+      .insert({
+        template_set_id: templateData.template_set_id,
+        type: templateData.type,
+        type_order: typeOrderMap[templateData.type] || 99,
+        priority: templateData.priority || 'Medium',
+        subject: templateData.subject,
+        body: templateData.body,
+        status: 'active',
+        created_by: access.employeeId,
+      }).select().single();
+    if (error) handleError(error, 'create template');
+    return data;
+  },
+  update: async (id, templateData) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data: existing } = await supabase.from('email_templates').select('created_by, template_set:email_template_sets(created_by, is_public)').eq('id', id).single();
+    const canEdit = access.isCEO || access.isSupervisor || existing?.created_by === access.employeeId || existing?.template_set?.is_public;
+    if (!canEdit) throw new Error('Access denied');
+    const typeOrderMap = { 'First Email': 1, '1st Follow-up': 2, '2nd Follow-up': 3, '3rd Follow-up': 4, 'Proposal': 5, 'Final Notice': 6 };
+    const { data, error } = await supabase.from('email_templates')
+      .update({
+        type: templateData.type,
+        type_order: typeOrderMap[templateData.type] || 99,
+        priority: templateData.priority,
+        subject: templateData.subject,
+        body: templateData.body,
+        updated_at: new Date().toISOString(),
+      }).eq('id', id).select().single();
+    if (error) handleError(error, 'update template');
+    return data;
+  },
+  delete: async (id) => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    const { data: existing } = await supabase.from('email_templates').select('created_by').eq('id', id).single();
+    if (!access.isCEO && !access.isSupervisor && existing?.created_by !== access.employeeId) throw new Error('Access denied');
+    const { error } = await supabase.from('email_templates').update({ status: 'inactive' }).eq('id', id);
+    if (error) handleError(error, 'delete template');
+    return { success: true };
+  },
+  getDropdownOptions: async () => {
+    checkSupabase();
+    await checkMarketingAccess();
+    const { data, error } = await supabase.from('email_templates')
+      .select('id, subject, type, template_set:email_template_sets(name)')
+      .eq('status', 'active')
+      .order('type_order');
+    if (error) handleError(error, 'fetch template options');
+    return data?.map(t => ({ id: t.id, label: `${t.template_set?.name} - ${t.type}: ${t.subject}`, subject: t.subject, type: t.type })) || [];
+  },
+};
+
+export const emailTemplateAnalyticsAPI = {
+  getTemplateStats: async () => {
+    checkSupabase();
+    const access = await checkMarketingAccess();
+    if (!access.isCEO && !access.isSupervisor) throw new Error('Analytics only for supervisors/CEO');
+    
+    // Get all templates with their usage in leads
+    const { data: templates } = await supabase.from('email_templates').select('id, subject, type, template_set_id').eq('status', 'active');
+    const { data: leads } = await supabase.from('marketing_leads').select('email_template_id, email_status, overall_status');
+    
+    const stats = (templates || []).map(template => {
+      const templateLeads = (leads || []).filter(l => l.email_template_id === template.id);
+      const sent = templateLeads.length;
+      const opened = templateLeads.filter(l => ['Opened', 'Replied', 'Interested'].includes(l.email_status)).length;
+      const replied = templateLeads.filter(l => ['Replied', 'Interested'].includes(l.email_status)).length;
+      const meetings = templateLeads.filter(l => l.overall_status === 'Meeting Scheduled').length;
+      const clients = templateLeads.filter(l => l.overall_status === 'Client Landed').length;
+      
+      return {
+        templateId: template.id,
+        subject: template.subject,
+        type: template.type,
+        setId: template.template_set_id,
+        sent,
+        opened,
+        replied,
+        meetings,
+        clients,
+        openRate: sent > 0 ? ((opened / sent) * 100).toFixed(1) : 0,
+        replyRate: sent > 0 ? ((replied / sent) * 100).toFixed(1) : 0,
+        conversionRate: sent > 0 ? ((clients / sent) * 100).toFixed(1) : 0,
+      };
+    });
+    
+    // Calculate trending (last 7 days would need date filtering, simplified here)
+    const sorted = [...stats].sort((a, b) => parseFloat(b.replyRate) - parseFloat(a.replyRate));
+    
+    return {
+      allStats: stats,
+      trending: sorted.slice(0, 3),
+      bestResults: stats.filter(s => parseFloat(s.conversionRate) > 10).sort((a, b) => parseFloat(b.conversionRate) - parseFloat(a.conversionRate)),
+      underperforming: stats.filter(s => s.sent > 5 && parseFloat(s.replyRate) < 5),
+    };
+  },
+};
+
+// ============================================
 // Default Export
 // ============================================
 
@@ -3594,4 +3937,10 @@ export default {
   roles: rolesAPI,
   teams: teamsAPI,
   loans: loansAPI,
+  marketingCampaigns: marketingCampaignsAPI,
+  marketingLeads: marketingLeadsAPI,
+  marketingAnalytics: marketingAnalyticsAPI,
+  emailTemplateSets: emailTemplateSetsAPI,
+  emailTemplates: emailTemplatesAPI,
+  emailTemplateAnalytics: emailTemplateAnalyticsAPI,
 };

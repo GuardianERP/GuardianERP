@@ -1,6 +1,6 @@
 {
   "name": "guardian-desktop-erp",
-  "version": "2.6.5",
+  "version": "2.6.6",
   "description": "Guardian Desktop ERP - Employee Management Dashboard",
   "main": "electron/main.js",
   "repository": {
@@ -26,6 +26,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.91.1",
+    "@tanstack/react-table": "^8.21.3",
     "bcryptjs": "^2.4.3",
     "chart.js": "^4.4.1",
     "clsx": "^2.0.0",

@@ -33,6 +33,8 @@ const IntakeNewPage = lazy(() => import('./pages/IntakeNewPage'));
 const ARFollowUpPage = lazy(() => import('./pages/ARFollowUpPage'));
 const VOBBOBPage = lazy(() => import('./pages/VOBBOBPage'));
 const VOBBOBAutoFillPage = lazy(() => import('./pages/VOBBOBAutoFillPage'));
+const MarketingCRMPage = lazy(() => import('./pages/MarketingCRMPage'));
+const CRMEmailsPage = lazy(() => import('./pages/CRMEmailsPage'));
 const UserManagementPage = lazy(() => import('./pages/UserManagementPage'));
 const MyProfilePage = lazy(() => import('./pages/MyProfilePage'));
 const SupervisionPage = lazy(() => import('./pages/SupervisionPage'));
@@ -81,6 +83,58 @@ function AdminRoute({ children }) {
   }
   
   return children;
+}
+
+// Billing Route wrapper (Operations department + Admins)
+function BillingRoute({ children }) {
+  const { user, isLoggedIn, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingScreen />;
+  }
+  
+  if (!isLoggedIn) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  // Admins always have access
+  if (user?.role === 'admin' || user?.role === 'super_admin') {
+    return children;
+  }
+  
+  // Check if user is in Operations department
+  if (user?.department?.toLowerCase() === 'operations' || 
+      user?.department?.toLowerCase() === 'billing') {
+    return children;
+  }
+  
+  return <Navigate to="/unauthorized?reason=billing" replace />;
+}
+
+// HR Route wrapper (HR department + Admins)
+function HRRoute({ children }) {
+  const { user, isLoggedIn, loading } = useAuth();
+  
+  if (loading) {
+    return <LoadingScreen />;
+  }
+  
+  if (!isLoggedIn) {
+    return <Navigate to="/auth" replace />;
+  }
+  
+  // Admins always have access
+  if (user?.role === 'admin' || user?.role === 'super_admin') {
+    return children;
+  }
+  
+  // Check if user is in HR department
+  if (user?.department?.toLowerCase() === 'hr' || 
+      user?.department?.toLowerCase() === 'human resources') {
+    return children;
+  }
+  
+  return <Navigate to="/unauthorized?reason=hr" replace />;
 }
 
 // Public Route wrapper (redirect to dashboard if logged in)
@@ -236,24 +290,36 @@ function AppWithMonitoring() {
           <Route path="time-tracking" element={<TimeTrackingPage />} />
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="ai-assistant" element={<AIAssistantPage />} />
-          <Route path="intake-form" element={<IntakeFormPage />} />
-          <Route path="intake-new" element={<IntakeNewPage />} />
-          <Route path="ar-followup" element={<ARFollowUpPage />} />
-          <Route path="vob-bob" element={<VOBBOBPage />} />
-          <Route path="vob-bob-autofill" element={<VOBBOBAutoFillPage />} />
+          
+          {/* Billing Routes - Operations Department + Admins */}
+          <Route path="intake-form" element={<BillingRoute><IntakeFormPage /></BillingRoute>} />
+          <Route path="intake-new" element={<BillingRoute><IntakeNewPage /></BillingRoute>} />
+          <Route path="ar-followup" element={<BillingRoute><ARFollowUpPage /></BillingRoute>} />
+          <Route path="vob-bob" element={<BillingRoute><VOBBOBPage /></BillingRoute>} />
+          <Route path="vob-bob-autofill" element={<BillingRoute><VOBBOBAutoFillPage /></BillingRoute>} />
+          
+          {/* Marketing Routes */}
+          <Route path="marketing-crm" element={<MarketingCRMPage />} />
+          <Route path="crm-emails" element={<CRMEmailsPage />} />
+          
+          {/* General Routes */}
           <Route path="loans" element={<LoansPage />} />
           <Route path="directory" element={<EmployeeDirectoryPage />} />
           <Route path="teams" element={<TeamsPage />} />
           
-          {/* Admin-only routes */}
+          {/* HR Routes - HR Department + Admins */}
+          <Route path="agreements" element={<HRRoute><AgreementsPage /></HRRoute>} />
+          
+          {/* Administration Routes - Admins Only */}
           <Route path="employees" element={<AdminRoute><EmployeesPage /></AdminRoute>} />
+          <Route path="user-management" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
+          <Route path="roles" element={<AdminRoute><RoleManagementPage /></AdminRoute>} />
+          <Route path="supervision" element={<AdminRoute><SupervisionPage /></AdminRoute>} />
+          
+          {/* Accounting Routes - Admins Only */}
           <Route path="expenses" element={<AdminRoute><ExpensesPage /></AdminRoute>} />
           <Route path="revenue" element={<AdminRoute><RevenuePage /></AdminRoute>} />
           <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-          <Route path="roles" element={<AdminRoute><RoleManagementPage /></AdminRoute>} />
-          <Route path="user-management" element={<AdminRoute><UserManagementPage /></AdminRoute>} />
-          <Route path="supervision" element={<AdminRoute><SupervisionPage /></AdminRoute>} />
-          <Route path="agreements" element={<AdminRoute><AgreementsPage /></AdminRoute>} />
         </Route>
         
         {/* Catch all - redirect to dashboard */}

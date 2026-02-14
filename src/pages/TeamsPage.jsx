@@ -27,6 +27,7 @@ function TeamsPage() {
   const [selectedTeamId, setSelectedTeamId] = useState(null);
   const [expandedTeams, setExpandedTeams] = useState(new Set());
   const [memberSearch, setMemberSearch] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
 
   const [formData, setFormData] = useState({
     name: '',
@@ -177,8 +178,13 @@ function TeamsPage() {
     const dept = (team.department || '').toLowerCase();
     const desc = (team.description || '').toLowerCase();
     const searchLower = search.toLowerCase();
-    return name.includes(searchLower) || dept.includes(searchLower) || desc.includes(searchLower);
+    const matchesSearch = name.includes(searchLower) || dept.includes(searchLower) || desc.includes(searchLower);
+    const matchesDepartment = !departmentFilter || team.department === departmentFilter;
+    return matchesSearch && matchesDepartment;
   });
+
+  // Get unique departments from teams
+  const teamDepartments = [...new Set(teams.map(t => t.department).filter(Boolean))];
 
   const teamColors = [
     'from-blue-500 to-indigo-600',
@@ -239,9 +245,21 @@ function TeamsPage() {
       {/* Actions Bar */}
       <div className="card p-4">
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-auto">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input type="text" placeholder="Search teams..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-10 w-full sm:w-72" />
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input type="text" placeholder="Search teams..." value={search} onChange={(e) => setSearch(e.target.value)} className="input pl-10 w-full" />
+            </div>
+            <select
+              value={departmentFilter}
+              onChange={(e) => setDepartmentFilter(e.target.value)}
+              className="input w-full sm:w-48"
+            >
+              <option value="">All Departments</option>
+              {teamDepartments.map(dept => (
+                <option key={dept} value={dept}>{getDepartmentLabel(dept)}</option>
+              ))}
+            </select>
           </div>
           {isAdmin && (
             <button onClick={() => setShowCreateModal(true)} className="btn btn-primary whitespace-nowrap">
@@ -252,8 +270,8 @@ function TeamsPage() {
         </div>
       </div>
 
-      {/* Teams List */}
-      <div className="space-y-4">
+      {/* Teams Grid - 2 columns */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {filteredTeams.map((team, idx) => {
           const isExpanded = expandedTeams.has(team.id);
           const gradient = teamColors[idx % teamColors.length];
@@ -323,7 +341,7 @@ function TeamsPage() {
                                 {isLead && <Crown className="w-4 h-4 text-yellow-500 flex-shrink-0" />}
                               </div>
                               <p className="text-xs text-gray-500 truncate">
-                                {getPositionLabel(emp.position) || emp.position || getDepartmentLabel(emp.department) || ''}
+                                {getPositionLabel(emp.designation) || emp.designation || getDepartmentLabel(emp.department) || ''}
                               </p>
                             </div>
                             {isAdmin && (
@@ -447,7 +465,7 @@ function TeamsPage() {
                   )}
                   <div className="flex-1">
                     <p className="font-medium text-gray-900 dark:text-white text-sm">{emp.first_name} {emp.last_name}</p>
-                    <p className="text-xs text-gray-500">{getDepartmentLabel(emp.department) || ''} {emp.position ? `• ${getPositionLabel(emp.position) || emp.position}` : ''}</p>
+                    <p className="text-xs text-gray-500">{getDepartmentLabel(emp.department) || ''} {emp.designation ? `• ${getPositionLabel(emp.designation) || emp.designation}` : ''}</p>
                   </div>
                   <UserPlus className="w-5 h-5 text-guardian-500" />
                 </button>

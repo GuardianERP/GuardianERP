@@ -5,6 +5,24 @@ All notable changes to Guardian Desktop ERP will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.6] - 2026-02-14
+
+### Added
+- **Role-Based Access Control** — Department-specific page restrictions
+  - Billing pages (Intake, VOB/BOB) restricted to Operations/Billing department + admins
+  - HR Agreements page restricted to HR department + admins
+  - Accounting pages (Expenses, Revenue, Reports) restricted to admins only
+  - Administration pages (Employees, User Management, Roles, Supervision) restricted to admins only
+- **Professional Unauthorized Page** — Enhanced access denied experience
+  - Context-aware messages based on restricted area (billing, HR, accounting, admin)
+  - Department-specific icons, colors, and recommendations
+  - User info card showing current role and department
+  - Quick access grid to pages user can access
+  - Numbered recommendations for what users can do next
+
+### Fixed
+- **Teams Page Bug** — Fixed error when adding employees to teams (column name fix: position → designation)
+
 ## [2.6.0] - 2026-02-13
 
 ### Added

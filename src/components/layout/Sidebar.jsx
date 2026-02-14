@@ -41,6 +41,8 @@ import {
   CreditCard,
   Contact,
   Users2,
+  Mail,
+  Megaphone,
 } from 'lucide-react';
 
 // Main menu items (no group) - with icon colors
@@ -67,6 +69,12 @@ const billingMenuItems = [
   { path: '/ar-followup', icon: FileText, label: 'AR Follow Up', color: 'text-lime-400' },
   { path: '/vob-bob', icon: ClipboardList, label: 'VOB / BOB', color: 'text-green-400' },
   { path: '/vob-bob-autofill', icon: FileText, label: 'VOB Auto-Fill', color: 'text-emerald-400' },
+];
+
+// Marketing group - CRM and Email Templates
+const marketingMenuItems = [
+  { path: '/marketing-crm', icon: Briefcase, label: 'My CRM', color: 'text-pink-400' },
+  { path: '/crm-emails', icon: Mail, label: 'CRM Emails', color: 'text-rose-400' },
 ];
 
 // HR/Operations group - Time & Attendance
@@ -233,6 +241,40 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }) {
             </li>
           ))}
           
+          {/* Marketing Group */}
+          {(!collapsed || isMobile) && (
+            <li className="pt-4 pb-2 px-3">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-2">
+                <Megaphone className="w-3.5 h-3.5" />
+                Marketing
+              </span>
+            </li>
+          )}
+          {collapsed && !isMobile && <li className="border-t border-gray-700 my-2"></li>}
+          {marketingMenuItems.map((item) => (
+            <li key={item.path}>
+              <NavLink
+                to={item.path}
+                onClick={handleNavClick}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
+                    isActive
+                      ? 'bg-pink-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                  } ${collapsed && !isMobile ? 'justify-center' : ''}`
+                }
+                title={collapsed && !isMobile ? item.label : undefined}
+              >
+                {({ isActive }) => (
+                  <>
+                    <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-white' : item.color}`} />
+                    {(!collapsed || isMobile) && <span className="text-sm">{item.label}</span>}
+                  </>
+                )}
+              </NavLink>
+            </li>
+          ))}
+          
           {/* HR/Operations Group */}
           {(!collapsed || isMobile) && (
             <li className="pt-4 pb-2 px-3">
@@ -368,3 +410,4 @@ function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }) {
 }
 
 export default Sidebar;
+
